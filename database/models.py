@@ -174,8 +174,7 @@ class Database:
         
         entry_price = pos[3]
         position_size = pos[4]
-        opened_at = pos[10]  # actually opened_at_timestamp; see below
-        opened_at_ts = pos[10]
+        opened_at_ts = pos[11]  # opened_at_timestamp (REAL)
         
         entry_value = entry_price * position_size
         exit_value = exit_price * position_size

@@ -25,7 +25,7 @@ def calculate_ic(features, pnl):
 
 def validate_weights(trades_data):
     if len(trades_data) < 20:
-        return None, None
+        return None
     
     train_data, test_data = split_train_test(trades_data)
     
