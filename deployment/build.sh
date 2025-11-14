@@ -13,8 +13,8 @@ BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # Version number
 APP_VERSION="2.2.0"
 
-# Image name
-IMAGE_NAME="alpha-sniper"
+# Image name (must match docker-compose service/container)
+IMAGE_NAME="alpha-sniper-v2"
 
 echo "========================================="
 echo "Building Alpha Sniper V2"
