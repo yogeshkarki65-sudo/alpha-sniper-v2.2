@@ -10,6 +10,7 @@ from monitoring.reporter import generate_daily_report
 from monitoring.healthcheck import start_healthcheck_server
 from monitoring import healthcheck as hc
 from monitoring.telegram_alerter import send_alert
+from monitoring.version import get_full_version_string, get_version_info
 from risk.daily_reset import run_daily_reset
 from deployment.capital_manager import check_scale_up
 
@@ -60,11 +61,19 @@ def main():
     print("=" * 60)
     print("🚀 ALPHA SNIPER V2 - Starting...")
     print("=" * 60)
-    
+
+    # Display version information
+    version_str = get_full_version_string()
+    version_info = get_version_info()
+    print(f"📦 {version_str}")
+    print("=" * 60)
+
     start_healthcheck_server()
     print("✅ Health check server started on port 8080")
-    
-    send_alert("🚀 Alpha Sniper V2 started successfully")
+
+    # Send startup alert with version info
+    commit_short = version_info.get('git_commit', 'unknown')[:7] if version_info.get('git_commit') != 'unknown' else 'unknown'
+    send_alert(f"🚀 Alpha Sniper V2 started successfully\n📦 Version: {version_info['version']} (commit: {commit_short})")
     
     schedule.every(config.SCANNER_INTERVAL).seconds.do(scanner_job)
     schedule.every(config.TRADER_INTERVAL).seconds.do(trader_job)
