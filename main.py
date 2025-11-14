@@ -1,5 +1,6 @@
 import schedule
 import time
+import os
 from datetime import datetime
 
 from config.config import config
@@ -68,12 +69,46 @@ def main():
     print(f"📦 {version_str}")
     print("=" * 60)
 
+    # Check for version mismatch (zero-trust deployment validation)
+    expected_version = os.getenv("EXPECTED_VERSION")
+    expected_commit = os.getenv("EXPECTED_COMMIT")
+
+    current_version = version_info.get('version')
+    current_commit = version_info.get('git_commit', 'unknown')[:7] if version_info.get('git_commit') != 'unknown' else 'unknown'
+
+    version_mismatch = False
+    mismatch_msg = []
+
+    if expected_version and current_version != expected_version:
+        version_mismatch = True
+        mismatch_msg.append(f"Version: Expected {expected_version}, got {current_version}")
+        print(f"⚠️  VERSION MISMATCH: Expected {expected_version}, got {current_version}")
+
+    if expected_commit and current_commit != expected_commit:
+        version_mismatch = True
+        mismatch_msg.append(f"Commit: Expected {expected_commit}, got {current_commit}")
+        print(f"⚠️  COMMIT MISMATCH: Expected {expected_commit}, got {current_commit}")
+
+    if version_mismatch:
+        alert_msg = "🚨 VERSION MISMATCH DETECTED!\n" + "\n".join(mismatch_msg)
+        alert_msg += f"\n\n⚠️  DEPLOYMENT VALIDATION FAILED!"
+        alert_msg += f"\n\nCurrent: {current_version} ({current_commit})"
+        send_alert(alert_msg)
+        print("=" * 60)
+        print("⚠️  Continuing with version mismatch warning...")
+        print("=" * 60)
+
     start_healthcheck_server()
     print("✅ Health check server started on port 8080")
 
     # Send startup alert with version info
     commit_short = version_info.get('git_commit', 'unknown')[:7] if version_info.get('git_commit') != 'unknown' else 'unknown'
-    send_alert(f"🚀 Alpha Sniper V2 started successfully\n📦 Version: {version_info['version']} (commit: {commit_short})")
+    startup_msg = f"🚀 Alpha Sniper V2 started successfully\n📦 Version: {version_info['version']} (commit: {commit_short})"
+
+    if not version_mismatch:
+        startup_msg += "\n✅ Version validated"
+
+    send_alert(startup_msg)
     
     schedule.every(config.SCANNER_INTERVAL).seconds.do(scanner_job)
     schedule.every(config.TRADER_INTERVAL).seconds.do(trader_job)
