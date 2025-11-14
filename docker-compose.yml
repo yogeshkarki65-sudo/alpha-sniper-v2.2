@@ -11,10 +11,8 @@ services:
       - ./backups:/app/backups
     env_file:
       - .env
-    environment:
-      # Optional: Set these to enable zero-trust deployment validation
-      # EXPECTED_VERSION: "2.2.0"
-      # EXPECTED_COMMIT: "205b155"
+    # Environment variables for zero-trust validation can be set at runtime:
+    # EXPECTED_VERSION=2.2.0 EXPECTED_COMMIT=afd2c6c docker compose up -d
     ports:
       - "8090:8080"
     healthcheck:
