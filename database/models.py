@@ -94,7 +94,17 @@ class Database:
                 total_fees REAL
             )
         ''')
-        
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id TEXT NOT NULL UNIQUE,
+                symbol TEXT NOT NULL,
+                side TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         conn.commit()
         conn.close()
     
@@ -236,11 +246,35 @@ class Database:
         conn = self.get_conn()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO learning_log 
+            INSERT INTO learning_log
             (weights_before, weights_after, train_ic, test_ic, num_trades_used)
             VALUES (?, ?, ?, ?, ?)
         ''', (json.dumps(weights_before), json.dumps(weights_after), train_ic, test_ic, num_trades))
         conn.commit()
         conn.close()
+
+    def order_exists(self, order_id):
+        """Check if order ID already exists to prevent duplicates."""
+        conn = self.get_conn()
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM orders WHERE order_id=?', (order_id,))
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count > 0
+
+    def record_order(self, order_id, symbol, side):
+        """Record order ID to prevent duplicates."""
+        conn = self.get_conn()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                INSERT INTO orders (order_id, symbol, side)
+                VALUES (?, ?, ?)
+            ''', (order_id, symbol, side))
+            conn.commit()
+        except Exception as e:
+            print(f"Error recording order: {e}")
+        finally:
+            conn.close()
 
 db = Database()

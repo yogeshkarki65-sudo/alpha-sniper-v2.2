@@ -4,6 +4,7 @@ from config.config import config
 from database.models import db
 from scanner.orderbook import get_orderbook_imbalance, get_spread_pct
 from scanner.scorer import calculate_score
+from scanner.rate_limiter import rate_limiter
 
 
 def get_usdt_pairs():
@@ -12,10 +13,17 @@ def get_usdt_pairs():
     and only keep the top N by quote volume so we don't hammer the API.
     """
     try:
+        # Check rate limit before making API call
+        rate_limiter.check_limit(weight=40)  # 24hr ticker endpoint is heavy
+
         url = f"{config.MEXC_BASE_URL}/api/v3/ticker/24hr"
         print(f"[scanner] Fetching 24h tickers from: {url}")
         resp = requests.get(url, timeout=10)
         resp.raise_for_status()
+
+        # Check API weight from response headers
+        rate_limiter.check_weight(resp.headers)
+
         tickers = resp.json()
     except Exception as e:
         print(f"[scanner] Error fetching 24h tickers: {e}")

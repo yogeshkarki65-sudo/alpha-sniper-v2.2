@@ -34,7 +34,15 @@ def open_position_from_signal(signal):
     signal_id = signal[0]
     symbol = signal[1]
     score = signal[2]
-    
+
+    # Generate unique order ID
+    order_id = f"{symbol}_{signal_id}_{int(datetime.now().timestamp())}"
+
+    # Check for duplicate orders
+    if db.order_exists(order_id):
+        print(f"⚠️  Duplicate order detected: {order_id}")
+        return False
+
     if not check_symbol_cooldown(symbol):
         print(f"⏸️  {symbol} in cooldown period")
         db.mark_signal_consumed(signal_id)
@@ -70,6 +78,9 @@ def open_position_from_signal(signal):
     stop_loss_price = entry_price * (1 - config.STOP_LOSS_PCT / 100)
     take_profit_price = entry_price * (1 + config.TAKE_PROFIT_PCT / 100)
     
+    # Record order to prevent duplicates
+    db.record_order(order_id, symbol, 'BUY')
+
     position_id = db.create_position(
         signal_id,
         symbol,
@@ -78,7 +89,7 @@ def open_position_from_signal(signal):
         stop_loss_price,
         take_profit_price
     )
-    
+
     db.mark_signal_consumed(signal_id)
     
     position_value = entry_price * position_size
@@ -122,15 +133,17 @@ def monitor_positions():
             highest_price = current_price
         
         current_profit_pct = ((current_price - entry_price) / entry_price) * 100
-        
-        now_ts = datetime.now().timestamp()
-        hold_time_hours = (now_ts - opened_at_ts) / 3600
-        if hold_time_hours >= config.MAX_HOLD_TIME_HOURS:
-            exit_price = current_price * (1 - config.SLIPPAGE_PCT / 100)
-            db.close_position(position_id, exit_price, 'time_exit')
-            print(f"⏰ CLOSED (time): {symbol} @ ${exit_price:.6f} | PnL: {current_profit_pct:.2f}%")
-            send_alert(f"⏰ Time Exit: {symbol} | PnL: {current_profit_pct:.2f}%")
-            continue
+
+        # Time-based exit (disabled by default per Grok recommendation - kills winners)
+        if config.MAX_HOLD_TIME_HOURS > 0:
+            now_ts = datetime.now().timestamp()
+            hold_time_hours = (now_ts - opened_at_ts) / 3600
+            if hold_time_hours >= config.MAX_HOLD_TIME_HOURS:
+                exit_price = current_price * (1 - config.SLIPPAGE_PCT / 100)
+                db.close_position(position_id, exit_price, 'time_exit')
+                print(f"⏰ CLOSED (time): {symbol} @ ${exit_price:.6f} | PnL: {current_profit_pct:.2f}%")
+                send_alert(f"⏰ Time Exit: {symbol} | PnL: {current_profit_pct:.2f}%")
+                continue
         
         if config.USE_TRAILING_STOP:
             if current_profit_pct >= config.TRAILING_STOP_ACTIVATION_PCT and not trailing_stop_active:

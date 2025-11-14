@@ -8,10 +8,12 @@ from trader.trader import run_trader
 from learning.self_trainer import run_self_learning
 from monitoring.reporter import generate_daily_report
 from monitoring.healthcheck import start_healthcheck_server
+from monitoring.emergency import start_emergency_server
 from monitoring import healthcheck as hc
 from monitoring.telegram_alerter import send_alert
 from risk.daily_reset import run_daily_reset
 from deployment.capital_manager import check_scale_up
+from database.models import db
 
 def scanner_job():
     try:
@@ -56,6 +58,33 @@ def capital_scale_job():
     except Exception as e:
         print(f"Capital manager error: {e}")
 
+def recover_positions():
+    """Recover open positions on restart to prevent double-ins."""
+    try:
+        open_positions = db.get_open_positions()
+        if open_positions:
+            print(f"🔄 RECOVERING {len(open_positions)} open positions from previous session")
+            for pos in open_positions:
+                symbol = pos[2]
+                entry_price = pos[3]
+                position_size = pos[4]
+                opened_at_ts = pos[11]
+                position_value = entry_price * position_size
+                send_alert(
+                    f"🔄 RECOVERED POSITION\n"
+                    f"Symbol: {symbol}\n"
+                    f"Entry: ${entry_price:.6f}\n"
+                    f"Size: {position_size:.4f}\n"
+                    f"Value: ${position_value:.2f}\n"
+                    f"Opened: {datetime.fromtimestamp(opened_at_ts).strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+            print(f"✅ Successfully recovered {len(open_positions)} positions")
+        else:
+            print("✅ No positions to recover")
+    except Exception as e:
+        print(f"⚠️  Error recovering positions: {e}")
+        send_alert(f"⚠️  Position Recovery Error: {str(e)}")
+
 def main():
     print("=" * 60)
     print("🚀 ALPHA SNIPER V2 - Starting...")
@@ -63,7 +92,13 @@ def main():
     
     start_healthcheck_server()
     print("✅ Health check server started on port 8080")
-    
+
+    start_emergency_server(port=8081)
+    print("✅ Emergency endpoint started on port 8081")
+
+    # Recover any open positions from previous session
+    recover_positions()
+
     send_alert("🚀 Alpha Sniper V2 started successfully")
     
     schedule.every(config.SCANNER_INTERVAL).seconds.do(scanner_job)
