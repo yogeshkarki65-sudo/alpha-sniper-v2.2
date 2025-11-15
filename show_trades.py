@@ -17,20 +17,21 @@ def show_performance():
     print("\n📊 OPEN POSITIONS:")
     print("-" * 60)
     cursor.execute("""
-        SELECT symbol, entry_price, size, direction, score,
-               opened_at, is_moon_mode
-        FROM positions
-        WHERE status = 'open'
-        ORDER BY opened_at DESC
+        SELECT p.symbol, p.entry_price, p.position_size, p.opened_at,
+               p.is_moon_mode, s.score
+        FROM positions p
+        LEFT JOIN signals s ON p.signal_id = s.id
+        ORDER BY p.opened_at DESC
     """)
     open_positions = cursor.fetchall()
 
     if open_positions:
         for pos in open_positions:
-            symbol, entry, size, direction, score, opened_at, moon = pos
+            symbol, entry, size, opened_at, moon, score = pos
             moon_flag = "🌙 MOON" if moon else ""
-            print(f"  {symbol:12} | Entry: ${entry:8.4f} | Size: {size:8.4f} | Score: {score:5.1f} {moon_flag}")
-            print(f"  {'':12} | Direction: {direction} | Opened: {opened_at}")
+            score_str = f"{score:.1f}" if score else "N/A"
+            print(f"  {symbol:12} | Entry: ${entry:8.4f} | Size: {size:8.4f} | Score: {score_str:>5} {moon_flag}")
+            print(f"  {'':12} | Opened: {opened_at}")
     else:
         print("  No open positions")
 
@@ -38,8 +39,8 @@ def show_performance():
     print("\n\n📈 CLOSED TRADES:")
     print("-" * 60)
     cursor.execute("""
-        SELECT symbol, entry_price, exit_price, size, pnl_dollars, pnl_pct,
-               exit_reason, opened_at, closed_at, is_moon_mode
+        SELECT symbol, entry_price, exit_price, position_size, net_pnl_usd, pnl_pct,
+               exit_reason, opened_at, closed_at, was_moon_mode
         FROM trades
         ORDER BY closed_at DESC
         LIMIT 20
