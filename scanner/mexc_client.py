@@ -47,13 +47,29 @@ class MEXCClient:
         Returns: List of klines [[timestamp, open, high, low, close, volume, ...], ...]
         """
         try:
+            # MEXC uses specific interval notation
+            interval_map = {
+                '1h': '60m',   # MEXC uses minutes for hourly
+                '4h': '4h',    # 4h stays same
+                '1d': '1d',    # 1d stays same
+                '24h': '1d'    # Map 24h to 1d
+            }
+
+            mexc_interval = interval_map.get(interval, interval)
+
             url = f"{self.base_url}/api/v3/klines"
             params = {
                 'symbol': symbol,
-                'interval': interval,
+                'interval': mexc_interval,
                 'limit': limit
             }
             resp = requests.get(url, params=params, timeout=self.timeout)
+
+            # Don't raise for 400 - just log and return empty
+            if resp.status_code == 400:
+                logger.debug(f"Klines not available for {symbol} {mexc_interval}: {resp.text[:100]}")
+                return []
+
             resp.raise_for_status()
             klines = resp.json()
             return klines
