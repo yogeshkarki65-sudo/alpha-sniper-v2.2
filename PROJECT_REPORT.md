@@ -20,7 +20,7 @@ Alpha Sniper V2.2 is an automated cryptocurrency trading bot designed for the ME
 - ✅ **Starting Equity**: $500 (virtual)
 - ✅ **Scanner**: Active, checking 58 liquid USDT pairs every 5 minutes
 - ✅ **Trader**: Active, checking for trade opportunities every 60 seconds
-- ✅ **Health Monitoring**: Operational on port 8090
+- ✅ **Health Monitoring**: Operational on port 80
 - ✅ **Telegram Alerts**: Configured and working
 
 ### Technology Stack
@@ -209,7 +209,7 @@ LEARNING_INTERVAL=3600            # 1 hour
   - `./data:/app/data` (database persistence)
   - `./logs:/app/logs` (log files)
   - `./backups:/app/backups` (database backups)
-- **Port**: 8090:8080 (health check)
+- **Port**: 80:8080 (health check)
 - **Restart Policy**: unless-stopped
 
 ### Management Scripts

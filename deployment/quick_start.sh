@@ -118,7 +118,7 @@ if docker ps | grep -q alpha-sniper-v2; then
     echo -e "  Check status:    ${CYAN}./deployment/monitor.sh${NC}"
     echo -e "  View stats:      ${CYAN}./deployment/stats.sh${NC}"
     echo -e "  Stop bot:        ${CYAN}docker compose down${NC}"
-    echo -e "  Check health:    ${CYAN}curl http://localhost:8090/health${NC}"
+    echo -e "  Check health:    ${CYAN}curl http://localhost:80/health${NC}"
     echo ""
     echo -e "${GREEN}Monitor your Telegram for alerts!${NC}"
 else

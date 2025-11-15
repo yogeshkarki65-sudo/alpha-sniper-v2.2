@@ -35,7 +35,7 @@ echo ""
 
 # Health check
 echo -e "${CYAN}[Health Check]${NC}"
-HEALTH=$(curl -s http://localhost:8090/health 2>/dev/null || echo '{"error": "Health endpoint unreachable"}')
+HEALTH=$(curl -s http://localhost:80/health 2>/dev/null || echo '{"error": "Health endpoint unreachable"}')
 echo "$HEALTH" | python3 -m json.tool 2>/dev/null || echo "$HEALTH"
 echo ""
 

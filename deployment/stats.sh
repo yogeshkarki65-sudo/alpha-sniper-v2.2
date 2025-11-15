@@ -144,7 +144,7 @@ echo ""
 
 # Current Status
 echo -e "${CYAN}[Current Status]${NC}"
-HEALTH=$(curl -s http://localhost:8090/health 2>/dev/null)
+HEALTH=$(curl -s http://localhost:80/health 2>/dev/null)
 if [ -n "$HEALTH" ]; then
     echo "$HEALTH" | python3 -c "import sys, json; data=json.load(sys.stdin); print(f\"Mode: {data.get('mode', 'N/A')}\"); print(f\"Equity: \${data.get('equity', 'N/A')}\"); print(f\"Open Positions: {data.get('open_positions', 'N/A')}\"); print(f\"Trading Paused: {data.get('trading_paused', 'N/A')}\")" 2>/dev/null || echo "Unable to parse health data"
 else

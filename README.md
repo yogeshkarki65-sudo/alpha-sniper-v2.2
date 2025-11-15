@@ -108,7 +108,7 @@ docker compose logs -f
 
 ### Health Check
 ```bash
-curl http://localhost:8090/health
+curl http://localhost:80/health
 ```
 
 ### Quick Status
@@ -253,7 +253,7 @@ See [DEPLOYMENT_GUIDE.md](deployment/DEPLOYMENT_GUIDE.md) for more troubleshooti
 - Check documentation in `deployment/`
 - Review logs: `docker compose logs -f`
 - Run diagnostics: `./deployment/monitor.sh`
-- Check health: `curl http://localhost:8090/health`
+- Check health: `curl http://localhost:80/health`
 
 ## Credits
 

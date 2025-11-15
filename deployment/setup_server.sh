@@ -71,7 +71,7 @@ echo -e "${GREEN}[4/10]${NC} Configuring firewall (UFW)..."
 ufw allow 22/tcp
 
 # Allow monitoring port (optional, only if you want external access)
-# ufw allow 8090/tcp
+# ufw allow 80/tcp
 
 # Enable firewall
 echo "y" | ufw enable
@@ -185,7 +185,7 @@ echo -e "4. Check logs:"
 echo -e "   ${BLUE}docker compose logs -f${NC}"
 echo ""
 echo -e "5. Monitor health:"
-echo -e "   ${BLUE}curl http://localhost:8090/health${NC}"
+echo -e "   ${BLUE}curl http://localhost:80/health${NC}"
 echo ""
 echo -e "6. View running containers:"
 echo -e "   ${BLUE}docker ps${NC}"

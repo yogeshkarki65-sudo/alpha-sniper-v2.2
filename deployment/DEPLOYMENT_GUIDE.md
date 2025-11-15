@@ -83,7 +83,7 @@ docker compose logs -f
 
 **Check health endpoint:**
 ```bash
-curl http://localhost:8090/health
+curl http://localhost:80/health
 ```
 
 Expected response:
@@ -140,7 +140,7 @@ docker ps
 docker stats alpha-sniper-v2
 
 # Health check
-curl http://localhost:8090/health
+curl http://localhost:80/health
 ```
 
 ### View Logs
@@ -195,7 +195,7 @@ docker compose restart
 
 1. **Check health endpoint**
    ```bash
-   curl http://localhost:8090/health
+   curl http://localhost:80/health
    ```
 
 2. **Review logs for errors**
@@ -241,7 +241,7 @@ docker compose exec alpha-sniper sqlite3 /app/data/trades.db \
   "SELECT ROUND(100.0 * SUM(CASE WHEN pnl_usd > 0 THEN 1 ELSE 0 END) / COUNT(*), 2) as win_rate FROM trades;"
 
 # Current equity
-curl http://localhost:8090/health | jq '.equity'
+curl http://localhost:80/health | jq '.equity'
 ```
 
 ## Troubleshooting
@@ -371,7 +371,7 @@ docker compose logs --tail=50
 5. **Restrict firewall**
    ```bash
    sudo ufw status
-   # Only allow necessary ports (22, and optionally 8090)
+   # Only allow necessary ports (22, and optionally 80)
    ```
 
 6. **Regular backups**
