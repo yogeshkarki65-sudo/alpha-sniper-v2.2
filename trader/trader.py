@@ -315,11 +315,60 @@ def monitor_positions():
         logger.info(f"  {symbol}: ${current_price:.6f} | PnL: {current_profit_pct:.2f}%")
 
 
+def cleanup_duplicate_positions():
+    """
+    Clean up duplicate positions on the same symbol.
+    Keeps the most recent position per symbol and closes older ones.
+    """
+    try:
+        positions = db.get_open_positions()
+        if not positions:
+            return
+
+        # Group positions by symbol
+        symbol_positions = {}
+        for pos in positions:
+            position_id = pos[0]
+            symbol = pos[2]
+            opened_at = pos[10]  # opened_at timestamp
+
+            if symbol not in symbol_positions:
+                symbol_positions[symbol] = []
+            symbol_positions[symbol].append((position_id, opened_at))
+
+        # Check for duplicates
+        duplicates_found = 0
+        for symbol, pos_list in symbol_positions.items():
+            if len(pos_list) > 1:
+                duplicates_found += len(pos_list) - 1
+                logger.warning(f"⚠️  Found {len(pos_list)} duplicate positions for {symbol}")
+
+                # Sort by opened_at (keep most recent)
+                pos_list.sort(key=lambda x: x[1] or "", reverse=True)
+
+                # Close all except the most recent
+                for position_id, _ in pos_list[1:]:
+                    # Get current price for this symbol
+                    current_price = get_current_price(symbol)
+                    if current_price:
+                        exit_price = current_price * (1 - config.SLIPPAGE_PCT / 100)
+                        db.close_position(position_id, exit_price, 'duplicate_cleanup')
+                        logger.info(f"🧹 Closed duplicate position {position_id} for {symbol}")
+
+        if duplicates_found > 0:
+            logger.info(f"✅ Cleaned up {duplicates_found} duplicate positions")
+    except Exception as e:
+        logger.error(f"Error cleaning up duplicates: {e}")
+
+
 def run_trader():
     """
     Main trader function - monitors positions and processes signals
     """
     logger.info("💼 Running trader...")
+
+    # Clean up any duplicate positions (safety check)
+    cleanup_duplicate_positions()
 
     # Monitor existing positions
     monitor_positions()

@@ -147,10 +147,12 @@ def get_usdt_pairs() -> List[Dict]:
         logger.error(f"Failed to fetch 24h tickers: {e}")
         return []
 
-    # Stablecoin pairs to exclude (stablecoin vs stablecoin = no volatility)
-    STABLECOIN_PAIRS = {
-        'USD1USDT', 'USDEUSDT', 'USDCUSDT', 'DAIUSDT', 'FDUSDUSDT',
-        'TUSDUSDT', 'USDPUSDT', 'BUSDUSDT', 'PAXUSDT', 'USTUSDT'
+    # Stablecoins to exclude (base assets that are stablecoins = no volatility)
+    # These are stablecoin-to-stablecoin pairs with no directional edge
+    STABLECOIN_BASES = {
+        'USD1', 'USDE', 'USDC', 'DAI', 'FDUSD', 'TUSD', 'USDP',
+        'BUSD', 'PAX', 'UST', 'USDD', 'LUSD', 'GUSD', 'SUSD',
+        'FRAX', 'USDJ', 'USDN', 'CUSD', 'EURS', 'EURT'
     }
 
     # Filter USDT pairs
@@ -162,8 +164,9 @@ def get_usdt_pairs() -> List[Dict]:
         if not symbol.endswith("USDT"):
             continue
 
-        # V3: Exclude stablecoin pairs
-        if symbol in STABLECOIN_PAIRS:
+        # V3: Exclude stablecoin pairs (extract base asset)
+        base = symbol[:-4]  # Remove 'USDT' suffix
+        if base in STABLECOIN_BASES:
             stablecoin_filtered += 1
             continue
 
@@ -392,6 +395,7 @@ def run_scanner() -> int:
     scores = []
     feature_failures = 0
     cooldown_blocked = 0
+    directional_blocked = 0
 
     for ticker in pairs:
         symbol = ticker.get("symbol")
@@ -400,6 +404,22 @@ def run_scanner() -> int:
         features = compute_features(ticker)
         if not features:
             feature_failures += 1
+            continue
+
+        # V3: Directional movement filters (no flat/choppy coins)
+        # Require real movement, not just noise
+        momentum_ok = abs(features.momentum_1h_pct) >= 1.0  # At least 1% move in 1h
+        velocity_ok = abs(features.velocity_24h_pct) >= 2.0  # At least 2% move in 24h
+        rsi_ok = features.rsi_14 <= 40 or features.rsi_14 >= 60  # Oversold or overbought, not middle
+
+        if not (momentum_ok and velocity_ok and rsi_ok):
+            directional_blocked += 1
+            logger.debug(
+                f"🚫 {symbol} blocked by directional filters: "
+                f"mom_1h={features.momentum_1h_pct:.1f}% (need ≥1%), "
+                f"vel_24h={features.velocity_24h_pct:.1f}% (need ≥2%), "
+                f"rsi={features.rsi_14:.0f} (need ≤40 or ≥60)"
+            )
             continue
 
         # Score using V3 scorer
@@ -455,6 +475,7 @@ def run_scanner() -> int:
         )
         logger.info(
             f"📊 Filters → feature_failures={feature_failures} | "
+            f"directional_blocked={directional_blocked} | "
             f"cooldown_blocked={cooldown_blocked}"
         )
     else:
