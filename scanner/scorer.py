@@ -55,7 +55,50 @@ class ScoreWeights:
         if os.path.exists(filepath):
             with open(filepath, 'r') as f:
                 data = json.load(f)
-                return cls(**data)
+
+                # Migration map for old V2 weights to new V3 weights
+                old_to_new = {
+                    'velocity': 'velocity_24h',
+                    'trend': 'trend_position',
+                }
+
+                # Check if this is an old format and migrate
+                if 'velocity' in data or 'trend' in data:
+                    print(f"[scorer] 🔄 Migrating old V2 weights format to V3...")
+                    migrated = {}
+                    for old_key, new_key in old_to_new.items():
+                        if old_key in data:
+                            migrated[new_key] = data[old_key]
+
+                    # Keep keys that exist in both versions
+                    for key in ['rvol', 'liquidity', 'orderbook_imbalance', 'spread']:
+                        if key in data:
+                            migrated[key] = data[key]
+
+                    # Use migrated data or fall back to defaults
+                    try:
+                        weights = cls(**migrated)
+                        print(f"[scorer] ✅ Migration successful, using migrated weights")
+                        # Save the new format
+                        weights.save(filepath)
+                        return weights
+                    except Exception as e:
+                        print(f"[scorer] ⚠️ Migration failed: {e}, using defaults")
+                        # Delete old file and use defaults
+                        os.rename(filepath, filepath + ".v2.bak")
+                        weights = cls()
+                        weights.save(filepath)
+                        return weights
+                else:
+                    # New format, load directly
+                    try:
+                        return cls(**data)
+                    except Exception as e:
+                        print(f"[scorer] ⚠️ Failed to load weights: {e}, using defaults")
+                        os.rename(filepath, filepath + ".invalid.bak")
+                        weights = cls()
+                        weights.save(filepath)
+                        return weights
         return cls()
 
     def save(self, filepath: str = "data/weights.json"):
