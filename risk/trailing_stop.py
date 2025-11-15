@@ -15,6 +15,7 @@ class TrailingStopConfig:
     entry_price: float
     activation_pct: float  # Profit % needed to activate trailing stop
     distance_pct: float    # How far stop trails from highest price
+    breakeven_pct: float = 5.0  # Profit % to move stop to breakeven (optional)
 
     def __post_init__(self):
         """Validate configuration"""
@@ -24,6 +25,8 @@ class TrailingStopConfig:
             raise ValueError("activation_pct must be non-negative")
         if self.distance_pct < 0:
             raise ValueError("distance_pct must be non-negative")
+        if self.breakeven_pct < 0:
+            raise ValueError("breakeven_pct must be non-negative")
 
 
 class TrailingStop:
@@ -68,7 +71,9 @@ class TrailingStop:
         self._highest_price = config.entry_price
         self._stop_price = 0.0
         self._is_hit = False
+        self._breakeven_activated = False
         self._activation_price = config.entry_price * (1 + config.activation_pct / 100)
+        self._breakeven_price = config.entry_price * (1 + config.breakeven_pct / 100)
 
     def update(self, current_price: float) -> bool:
         """
@@ -95,7 +100,14 @@ class TrailingStop:
         if self._is_active:
             if current_price > self._highest_price:
                 self._highest_price = current_price
-                self._stop_price = self._highest_price * (1 - self.config.distance_pct / 100)
+
+                # Check if we should activate breakeven protection
+                if not self._breakeven_activated and current_price >= self._breakeven_price:
+                    self._breakeven_activated = True
+                    self._stop_price = self.config.entry_price  # Move to breakeven
+                else:
+                    # Normal trailing
+                    self._stop_price = self._highest_price * (1 - self.config.distance_pct / 100)
 
             # Check if stop hit
             if current_price <= self._stop_price:
@@ -129,6 +141,11 @@ class TrailingStop:
         """Current profit percentage from entry"""
         return ((self._highest_price - self.config.entry_price) / self.config.entry_price) * 100
 
+    @property
+    def breakeven_activated(self) -> bool:
+        """Whether breakeven protection has been activated"""
+        return self._breakeven_activated
+
     def get_state(self) -> dict:
         """
         Get current state as dictionary (for database storage).
@@ -139,10 +156,12 @@ class TrailingStop:
         return {
             'is_active': self._is_active,
             'is_hit': self._is_hit,
+            'breakeven_activated': self._breakeven_activated,
             'highest_price': self._highest_price,
             'stop_price': self._stop_price,
             'current_profit_pct': self.current_profit_pct,
             'activation_price': self._activation_price,
+            'breakeven_price': self._breakeven_price,
         }
 
     @classmethod
@@ -158,10 +177,11 @@ class TrailingStop:
             TrailingStop instance with restored state
         """
         ts = cls(config)
-        ts._is_active = state['is_active']
-        ts._is_hit = state['is_hit']
-        ts._highest_price = state['highest_price']
-        ts._stop_price = state['stop_price']
+        ts._is_active = state.get('is_active', False)
+        ts._is_hit = state.get('is_hit', False)
+        ts._breakeven_activated = state.get('breakeven_activated', False)
+        ts._highest_price = state.get('highest_price', config.entry_price)
+        ts._stop_price = state.get('stop_price', 0.0)
         return ts
 
     def __repr__(self) -> str:
