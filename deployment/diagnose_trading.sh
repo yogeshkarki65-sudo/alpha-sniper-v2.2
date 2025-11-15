@@ -38,20 +38,25 @@ echo ""
 
 echo "💼 7. DATABASE - OPEN POSITIONS:"
 echo "------------------------------------------"
-docker exec alpha-sniper-v2 sqlite3 /app/data/trades.db "SELECT symbol, entry_price, current_pnl_pct, status, datetime(opened_at_timestamp, 'unixepoch', 'localtime') as opened FROM positions WHERE status='OPEN';"
+docker exec alpha-sniper-v2 sqlite3 /app/data/trades.db "SELECT id, symbol, ROUND(entry_price, 6) as entry, ROUND(stop_loss_price, 6) as SL, ROUND(take_profit_price, 6) as TP, datetime(opened_at_timestamp, 'unixepoch', 'localtime') as opened FROM positions;"
 echo ""
 
-echo "📊 8. DATABASE - ALL POSITIONS:"
+echo "📊 8. DATABASE - CLOSED TRADES:"
 echo "------------------------------------------"
-docker exec alpha-sniper-v2 sqlite3 /app/data/trades.db "SELECT COUNT(*) as total, SUM(CASE WHEN status='OPEN' THEN 1 ELSE 0 END) as open, SUM(CASE WHEN status='CLOSED' THEN 1 ELSE 0 END) as closed FROM positions;"
+docker exec alpha-sniper-v2 sqlite3 /app/data/trades.db "SELECT symbol, exit_reason, ROUND(pnl_pct, 2) as pnl_pct, datetime(closed_at, 'localtime') as closed FROM trades ORDER BY id DESC LIMIT 5;"
 echo ""
 
-echo "🏥 9. HEALTH ENDPOINT:"
+echo "📈 9. DATABASE - STATS:"
+echo "------------------------------------------"
+docker exec alpha-sniper-v2 sqlite3 /app/data/trades.db "SELECT (SELECT COUNT(*) FROM positions) as open_positions, (SELECT COUNT(*) FROM trades) as closed_trades, (SELECT ROUND(SUM(net_pnl_usd), 2) FROM trades) as total_pnl;"
+echo ""
+
+echo "🏥 10. HEALTH ENDPOINT:"
 echo "------------------------------------------"
 curl -s http://localhost:8090/health | python3 -m json.tool
 echo ""
 
-echo "⚙️  10. CURRENT CONFIGURATION:"
+echo "⚙️  11. CURRENT CONFIGURATION:"
 echo "------------------------------------------"
 docker exec alpha-sniper-v2 sh -c 'echo "SCANNER_INTERVAL: $SCANNER_INTERVAL"; echo "MIN_SIGNAL_SCORE: $MIN_SIGNAL_SCORE"; echo "MAX_DAILY_DRAWDOWN_PCT: $MAX_DAILY_DRAWDOWN_PCT"; echo "MAX_POSITION_RISK_PCT: $MAX_POSITION_RISK_PCT"; echo "MAX_OPEN_POSITIONS: $MAX_OPEN_POSITIONS"; echo "MOON_MULT: $MOON_MULT"'
 echo ""
