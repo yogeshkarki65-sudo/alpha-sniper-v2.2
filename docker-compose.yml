@@ -2,7 +2,12 @@ version: '3.8'
 
 services:
   alpha-sniper:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+        APP_VERSION: "2.2.0"
     container_name: alpha-sniper-v2
     restart: unless-stopped
     volumes:

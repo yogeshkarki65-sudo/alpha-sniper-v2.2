@@ -101,15 +101,7 @@ def main():
     start_healthcheck_server()
     print("✅ Health check server started on port 8080")
 
-    # Send startup alert with version info
-    commit_short = version_info.get('git_commit', 'unknown')[:7] if version_info.get('git_commit') != 'unknown' else 'unknown'
-    startup_msg = f"🚀 Alpha Sniper V2 started successfully\n📦 Version: {version_info['version']} (commit: {commit_short})"
-
-    if not version_mismatch:
-        startup_msg += "\n✅ Version validated"
-
-    send_alert(startup_msg)
-    
+    # Schedule jobs FIRST (before any blocking operations)
     schedule.every(config.SCANNER_INTERVAL).seconds.do(scanner_job)
     schedule.every(config.TRADER_INTERVAL).seconds.do(trader_job)
     schedule.every(config.LEARNING_INTERVAL).seconds.do(learning_job)
@@ -123,9 +115,25 @@ def main():
     print(f"🧠 Learning runs every {config.LEARNING_INTERVAL}s")
     print(f"📊 Daily report at {config.DAILY_REPORT_HOUR}:00 UTC")
     print("=" * 60)
-    
+
+    # Send startup alert (non-blocking - don't let this crash the bot)
+    try:
+        commit_short = version_info.get('git_commit', 'unknown')[:7] if version_info.get('git_commit') != 'unknown' else 'unknown'
+        startup_msg = f"🚀 Alpha Sniper V2 started successfully\n📦 Version: {version_info['version']} (commit: {commit_short})"
+
+        if not version_mismatch:
+            startup_msg += "\n✅ Version validated"
+
+        send_alert(startup_msg)
+        print("✅ Startup alert sent")
+    except Exception as e:
+        print(f"⚠️  Failed to send startup alert: {e}")
+        print("⚠️  Continuing anyway...")
+
+    # Run scanner immediately on startup
     scanner_job()
-    
+
+    # Main scheduler loop
     while True:
         schedule.run_pending()
         time.sleep(1)
