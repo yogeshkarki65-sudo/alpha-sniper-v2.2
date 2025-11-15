@@ -57,31 +57,44 @@ def capital_scale_job():
         print(f"Capital manager error: {e}")
 
 def main():
-    print("=" * 60)
-    print("🚀 ALPHA SNIPER V2 - Starting...")
-    print("=" * 60)
-    
-    start_healthcheck_server()
-    print("✅ Health check server started on port 8080")
-    
-    send_alert("🚀 Alpha Sniper V2 started successfully")
-    
+    print("=" * 60, flush=True)
+    print("🚀 ALPHA SNIPER V2 - Starting...", flush=True)
+    print("=" * 60, flush=True)
+    print(f"Mode: {config.MODE}", flush=True)
+    print(f"Starting Equity: ${config.SIM_EQUITY_START if config.MODE == 'SIM' else config.LIVE_EQUITY_START}", flush=True)
+    print("=" * 60, flush=True)
+
+    try:
+        start_healthcheck_server()
+        print("✅ Health check server started on port 8080", flush=True)
+        time.sleep(1)  # Give Flask a moment to start
+    except Exception as e:
+        print(f"❌ Failed to start health check server: {e}", flush=True)
+
+    try:
+        send_alert("🚀 Alpha Sniper V2 started successfully")
+    except Exception as e:
+        print(f"⚠️ Failed to send startup alert: {e}", flush=True)
+
+    print("Setting up job schedulers...", flush=True)
     schedule.every(config.SCANNER_INTERVAL).seconds.do(scanner_job)
     schedule.every(config.TRADER_INTERVAL).seconds.do(trader_job)
     schedule.every(config.LEARNING_INTERVAL).seconds.do(learning_job)
-    
+
     schedule.every().day.at(f"{config.DAILY_REPORT_HOUR:02d}:00").do(report_job)
     schedule.every().day.at("00:00").do(daily_reset_job)
     schedule.every(1).hours.do(capital_scale_job)
-    
-    print(f"📅 Scanner runs every {config.SCANNER_INTERVAL}s")
-    print(f"💼 Trader runs every {config.TRADER_INTERVAL}s")
-    print(f"🧠 Learning runs every {config.LEARNING_INTERVAL}s")
-    print(f"📊 Daily report at {config.DAILY_REPORT_HOUR}:00 UTC")
-    print("=" * 60)
-    
+
+    print(f"📅 Scanner runs every {config.SCANNER_INTERVAL}s", flush=True)
+    print(f"💼 Trader runs every {config.TRADER_INTERVAL}s", flush=True)
+    print(f"🧠 Learning runs every {config.LEARNING_INTERVAL}s", flush=True)
+    print(f"📊 Daily report at {config.DAILY_REPORT_HOUR}:00 UTC", flush=True)
+    print("=" * 60, flush=True)
+    print("Running initial scanner...", flush=True)
+
     scanner_job()
-    
+
+    print("Entering main loop...", flush=True)
     while True:
         schedule.run_pending()
         time.sleep(1)
