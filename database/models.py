@@ -4,6 +4,7 @@ SQLite database with full feature tracking for Sniper Swing strategy
 """
 import sqlite3
 import json
+import os
 from datetime import datetime
 from typing import Optional, List, Tuple, Dict, Any
 from config.config import config
@@ -14,6 +15,10 @@ class Database:
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or config.DATABASE_PATH
+        # Ensure directory exists before creating database
+        db_dir = os.path.dirname(self.db_path)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir, exist_ok=True)
         self.init_db()
 
     def get_conn(self) -> sqlite3.Connection:
