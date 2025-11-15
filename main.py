@@ -10,7 +10,6 @@ from config.config import config
 from config.logging_config import logger
 from scanner.scanner import run_scanner
 from trader.trader import run_trader
-from learning.self_trainer import run_self_learning
 from monitoring.reporter import generate_daily_report
 from monitoring.healthcheck import start_healthcheck_server
 from monitoring import healthcheck as hc
@@ -37,18 +36,6 @@ def trader_job():
     except Exception as e:
         logger.error(f"Trader error: {e}", exc_info=True)
         send_alert(f"⚠️ Trader Error: {str(e)}")
-
-
-def learning_job():
-    """Run self-learning with error handling"""
-    if not config.LEARNING_ENABLED:
-        return
-
-    try:
-        run_self_learning()
-    except Exception as e:
-        logger.error(f"Learning error: {e}", exc_info=True)
-        send_alert(f"⚠️ Learning Error: {str(e)}")
 
 
 def report_job():
@@ -109,18 +96,12 @@ def main():
     # Schedule jobs
     schedule.every(config.SCANNER_INTERVAL).seconds.do(scanner_job)
     schedule.every(config.TRADER_INTERVAL).seconds.do(trader_job)
-
-    if config.LEARNING_ENABLED:
-        schedule.every(config.LEARNING_INTERVAL).seconds.do(learning_job)
-
     schedule.every().day.at(f"{config.DAILY_REPORT_HOUR:02d}:00").do(report_job)
     schedule.every().day.at("00:00").do(daily_reset_job)
     schedule.every(1).hours.do(capital_scale_job)
 
     logger.info(f"📅 Scanner runs every {config.SCANNER_INTERVAL}s (5 minutes)")
     logger.info(f"💼 Trader runs every {config.TRADER_INTERVAL}s (1 minute)")
-    if config.LEARNING_ENABLED:
-        logger.info(f"🧠 Learning runs every {config.LEARNING_INTERVAL}s")
     logger.info(f"📊 Daily report at {config.DAILY_REPORT_HOUR}:00 UTC")
     logger.info("=" * 70)
     logger.info("")
