@@ -150,7 +150,10 @@ def monitor_positions() -> None:
         trailing_stop_active = bool(pos[8])
         trailing_stop_price = float(pos[9]) if pos[9] else None
         breakeven_moved = bool(pos[10])
-        opened_at_ts = float(pos[12])
+        # pos[11] is is_moon_mode
+        # pos[12] is opened_at (TEXT)
+        # pos[13] is opened_at_timestamp (REAL)
+        opened_at_ts = float(pos[13])
 
         # Get current price
         current_price = mexc_client.get_current_price(symbol)
