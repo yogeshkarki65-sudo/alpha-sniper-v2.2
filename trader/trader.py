@@ -142,15 +142,15 @@ def monitor_positions() -> None:
     for pos in positions:
         position_id = pos[0]
         symbol = pos[2]
-        entry_price = pos[3]
-        position_size = pos[4]
-        stop_loss_price = pos[5]
-        take_profit_price = pos[6]
-        highest_price = pos[7]
+        entry_price = float(pos[3])
+        position_size = float(pos[4])
+        stop_loss_price = float(pos[5])
+        take_profit_price = float(pos[6])
+        highest_price = float(pos[7])
         trailing_stop_active = bool(pos[8])
-        trailing_stop_price = pos[9]
+        trailing_stop_price = float(pos[9]) if pos[9] else None
         breakeven_moved = bool(pos[10])
-        opened_at_ts = pos[12]
+        opened_at_ts = float(pos[12])
 
         # Get current price
         current_price = mexc_client.get_current_price(symbol)
