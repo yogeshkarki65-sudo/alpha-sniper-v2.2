@@ -112,7 +112,7 @@ def monitor_positions():
         highest_price = pos[7]
         trailing_stop_active = bool(pos[8])
         trailing_stop_price = pos[9]
-        opened_at_ts = pos[10]
+        opened_at_ts = float(pos[10]) if pos[10] else datetime.now().timestamp()
         
         current_price = get_current_price(symbol)
         if not current_price:
