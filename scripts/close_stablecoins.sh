@@ -11,8 +11,7 @@ SELECT
     entry_price,
     ROUND((julianday('now') - julianday(opened_at)) * 24, 1) as hours_open
 FROM positions
-WHERE exit_reason IS NULL
-AND (
+WHERE (
     symbol LIKE '%USDC%' OR
     symbol LIKE '%USDE%' OR
     symbol LIKE '%DAI%' OR
@@ -23,18 +22,12 @@ AND (
 EOF
 
 echo ""
-echo "⚠️  Closing stablecoin positions (break-even exit)..."
+echo "⚠️  Deleting stablecoin positions from database..."
 
-# Close them at entry price (break-even)
+# Delete stablecoin positions (positions table doesn't have exit_reason column)
 docker exec alpha-sniper-v2 sqlite3 /app/data/trades.db <<EOF
-UPDATE positions
-SET
-    exit_reason = 'MANUAL_STABLECOIN',
-    exit_price = entry_price,
-    closed_at = datetime('now'),
-    pnl = -0.10  -- Account for 0.1% taker fee on exit
-WHERE exit_reason IS NULL
-AND (
+DELETE FROM positions
+WHERE (
     symbol LIKE '%USDC%' OR
     symbol LIKE '%USDE%' OR
     symbol LIKE '%DAI%' OR
@@ -44,10 +37,10 @@ AND (
 );
 EOF
 
-echo "✅ Stablecoin positions closed!"
+echo "✅ Stablecoin positions removed!"
 echo ""
 echo "📊 Current open positions:"
-docker exec alpha-sniper-v2 sqlite3 /app/data/trades.db "SELECT COUNT(*) as open_positions FROM positions WHERE exit_reason IS NULL;"
+docker exec alpha-sniper-v2 sqlite3 /app/data/trades.db "SELECT COUNT(*) as remaining FROM positions;"
 
 echo ""
 echo "🚀 Bot can now trade real coins!"
