@@ -112,7 +112,17 @@ def monitor_positions():
         highest_price = float(pos[7]) if pos[7] else entry_price
         trailing_stop_active = bool(pos[8])
         trailing_stop_price = float(pos[9]) if pos[9] else 0.0
-        opened_at_ts = float(pos[10]) if pos[10] else datetime.now().timestamp()
+
+        # Parse opened_at datetime string to timestamp
+        if pos[10]:
+            try:
+                opened_at_dt = datetime.fromisoformat(pos[10])
+                opened_at_ts = opened_at_dt.timestamp()
+            except (ValueError, TypeError):
+                # Fallback if it's already a timestamp
+                opened_at_ts = float(pos[10])
+        else:
+            opened_at_ts = datetime.now().timestamp()
 
         current_price = get_current_price(symbol)
         if not current_price:

@@ -31,7 +31,7 @@ SELECT
     '\nAvg P&L %: ' || ROUND(AVG(pnl_pct), 2) || '%' ||
     '\nBest Trade: ' || ROUND(MAX(pnl_pct), 2) || '%' ||
     '\nWorst Trade: ' || ROUND(MIN(pnl_pct), 2) || '%' ||
-    '\nAvg Hold Time: ' || ROUND(AVG(hold_time_minutes), 1) || ' minutes'
+    '\nAvg Hold Time: ' || ROUND(AVG(hold_time_hours), 1) || ' minutes'
 FROM trades;
 EOF
 echo ""
