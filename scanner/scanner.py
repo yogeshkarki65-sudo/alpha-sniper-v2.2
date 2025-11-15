@@ -6,6 +6,24 @@ from scanner.orderbook import get_orderbook_imbalance, get_spread_pct
 from scanner.scorer import calculate_score
 
 
+def is_stablecoin(symbol):
+    """
+    Check if symbol is a stablecoin (pegged to $1, won't hit TP/SL).
+    """
+    # Common stablecoins - these don't move enough to trade profitably
+    STABLECOINS = [
+        'USDC', 'USDT', 'BUSD', 'DAI', 'TUSD', 'USDD', 'USDE',
+        'USDP', 'GUSD', 'FRAX', 'LUSD', 'SUSD', 'USDN', 'USDJ',
+        'FDUSD', 'PYUSD', 'EURC', 'EURT', 'EUROC', 'EURS'
+    ]
+
+    # Extract base symbol (remove USDT suffix)
+    base = symbol.replace('USDT', '')
+
+    # Check if base is a stablecoin
+    return base in STABLECOINS
+
+
 def get_usdt_pairs():
     """
     Fetch USDT pairs from MEXC 24h ticker endpoint, filter by liquidity + spread,
@@ -23,9 +41,15 @@ def get_usdt_pairs():
 
     # Filter only USDT symbols and with quoteVolume present
     usdt = []
+    stablecoins_filtered = 0
     for t in tickers:
         symbol = t.get("symbol", "")
         if not symbol.endswith("USDT"):
+            continue
+
+        # Filter out stablecoins (they won't hit TP/SL)
+        if is_stablecoin(symbol):
+            stablecoins_filtered += 1
             continue
 
         try:
@@ -34,6 +58,9 @@ def get_usdt_pairs():
             quote_volume = 0.0
 
         usdt.append((quote_volume, t))
+
+    if stablecoins_filtered > 0:
+        print(f"[scanner] Filtered out {stablecoins_filtered} stablecoins")
 
     if not usdt:
         print("[scanner] No USDT tickers found from exchange")
