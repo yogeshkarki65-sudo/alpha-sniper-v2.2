@@ -118,15 +118,16 @@ def compute_features(ticker):
 
 
 def run_scanner():
-    print("🔍 Running scanner...")
+    print("🔍 Running scanner...", flush=True)
     pairs = get_usdt_pairs()
-    print(f"[scanner] Final universe size: {len(pairs)} symbols")
+    print(f"[scanner] Final universe size: {len(pairs)} symbols", flush=True)
 
     if not pairs:
-        print("[scanner] No pairs to scan (check network / API / filters)")
+        print("[scanner] No pairs to scan (check network / API / filters)", flush=True)
         return 0
 
     signals_created = 0
+    scores = []  # Track all scores for statistics
 
     for t in pairs:
         f = compute_features(t)
@@ -139,6 +140,8 @@ def run_scanner():
             f["trend"],
             f["orderbook_imbalance"],
         )
+
+        scores.append(score)
 
         if score >= config.MIN_SIGNAL_SCORE:
             db.create_signal(
@@ -154,10 +157,25 @@ def run_scanner():
             print(
                 f"[scanner] ✅ Signal: {f['symbol']} "
                 f"score={score:.1f} rvol={f['rvol']:.2f} "
-                f"vel={f['velocity']:.2f}% trend={f['trend']:.2f} ob={f['orderbook_imbalance']:.2f}"
+                f"vel={f['velocity']:.2f}% trend={f['trend']:.2f} ob={f['orderbook_imbalance']:.2f}",
+                flush=True
             )
 
-    print(f"[scanner] Created {signals_created} signals this run")
+    # V2.3: Scanner instrumentation - detailed statistics
+    if scores:
+        min_score = min(scores)
+        max_score = max(scores)
+        avg_score = sum(scores) / len(scores)
+        print(
+            f"[scanner] 📊 Summary → candidates={len(scores)} | signals={signals_created} | "
+            f"score_min={min_score:.1f} | score_avg={avg_score:.1f} | score_max={max_score:.1f} | "
+            f"threshold={config.MIN_SIGNAL_SCORE}",
+            flush=True
+        )
+    else:
+        print(f"[scanner] ⚠️  No valid candidates after feature computation", flush=True)
+
+    print(f"[scanner] Created {signals_created} signals this run", flush=True)
     return signals_created
 
 
