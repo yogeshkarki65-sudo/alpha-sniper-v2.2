@@ -105,19 +105,19 @@ def monitor_positions():
     for pos in positions:
         position_id = pos[0]
         symbol = pos[2]
-        entry_price = pos[3]
-        position_size = pos[4]
-        stop_loss_price = pos[5]
-        take_profit_price = pos[6]
-        highest_price = pos[7]
+        entry_price = float(pos[3])
+        position_size = float(pos[4])
+        stop_loss_price = float(pos[5])
+        take_profit_price = float(pos[6])
+        highest_price = float(pos[7]) if pos[7] else entry_price
         trailing_stop_active = bool(pos[8])
-        trailing_stop_price = pos[9]
-        opened_at_ts = pos[10]
-        
+        trailing_stop_price = float(pos[9]) if pos[9] else 0.0
+        opened_at_ts = float(pos[10]) if pos[10] else datetime.now().timestamp()
+
         current_price = get_current_price(symbol)
         if not current_price:
             continue
-        
+
         if current_price > highest_price:
             highest_price = current_price
         
