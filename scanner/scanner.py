@@ -147,11 +147,24 @@ def get_usdt_pairs() -> List[Dict]:
         logger.error(f"Failed to fetch 24h tickers: {e}")
         return []
 
+    # Stablecoin pairs to exclude (stablecoin vs stablecoin = no volatility)
+    STABLECOIN_PAIRS = {
+        'USD1USDT', 'USDEUSDT', 'USDCUSDT', 'DAIUSDT', 'FDUSDUSDT',
+        'TUSDUSDT', 'USDPUSDT', 'BUSDUSDT', 'PAXUSDT', 'USTUSDT'
+    }
+
     # Filter USDT pairs
     usdt = []
+    stablecoin_filtered = 0
+
     for t in tickers:
         symbol = t.get("symbol", "")
         if not symbol.endswith("USDT"):
+            continue
+
+        # V3: Exclude stablecoin pairs
+        if symbol in STABLECOIN_PAIRS:
+            stablecoin_filtered += 1
             continue
 
         try:
@@ -170,7 +183,10 @@ def get_usdt_pairs() -> List[Dict]:
     TOP_N = 60
     top = usdt[:TOP_N]
 
-    logger.info(f"Found {len(usdt)} USDT pairs, analyzing top {len(top)} by volume")
+    logger.info(
+        f"Found {len(usdt)} USDT pairs (excluded {stablecoin_filtered} stablecoins), "
+        f"analyzing top {len(top)} by volume"
+    )
 
     # Apply filters
     filtered = []
