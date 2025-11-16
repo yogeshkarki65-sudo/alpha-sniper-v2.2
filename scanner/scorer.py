@@ -19,29 +19,38 @@ from pathlib import Path
 @dataclass
 class ScoreWeights:
     """
-    Configurable weights for each scoring component.
+    V4.1 Sniper Swing - Configurable weights for each scoring component.
     Sum should equal 1.0 for interpretability.
+
+    Distribution:
+    - Trend Strength (35%): ret_1h, ret_4h, ret_24h
+    - Volume & Liquidity (20%): rvol, quote_volume
+    - MA Alignment (20%): above_ma_1h, above_ma_4h, above_ma_24h
+    - RSI Regime (15%): rsi
+    - Market Structure (10%): range_pos, spread
     """
-    # Volume-based features
-    rvol: float = 0.15              # Relative volume surge
-    liquidity: float = 0.05         # 24h volume in USD
+    # TREND STRENGTH (35% total)
+    velocity_24h: float = 0.12      # 24h price change (ret_24h_pct)
+    momentum_1h: float = 0.12       # 1h price change (ret_1h_pct)
+    momentum_15m: float = 0.11      # 4h price change (ret_4h_pct) - reusing 15m field
 
-    # Price momentum features
-    velocity_24h: float = 0.15      # 24h price change
-    momentum_1h: float = 0.10       # 1h price change
-    momentum_15m: float = 0.10      # 15m price change
+    # VOLUME & LIQUIDITY (20% total)
+    rvol: float = 0.10              # Relative volume surge
+    liquidity: float = 0.10         # 24h volume in USD
 
-    # Technical indicators
-    rsi: float = 0.10               # RSI(14) - oversold/overbought
-    trend_position: float = 0.10    # Position in 24h range
-    above_ma: float = 0.05          # Price above 1h MA
+    # MA ALIGNMENT (20% total)
+    above_ma: float = 0.20          # Price above MA (1h, 4h, 24h combined)
 
-    # Market microstructure
-    orderbook_imbalance: float = 0.10  # Bid/ask pressure
+    # RSI REGIME (15% total)
+    rsi: float = 0.15               # RSI(14) - trend zone 58-85
+
+    # MARKET STRUCTURE (10% total)
+    trend_position: float = 0.05    # Position in 24h range
     spread: float = 0.05            # Bid-ask spread (tighter = better)
 
-    # Volatility
-    atr_pct: float = 0.05           # Average True Range % (opportunity)
+    # REMOVED for v4.1 (anti-scalping, simplicity)
+    orderbook_imbalance: float = 0.00  # Not used in v4.1
+    atr_pct: float = 0.00           # Not used in v4.1
 
     def __post_init__(self):
         """Validate weights sum to 1.0"""
@@ -307,24 +316,33 @@ class SignalScorer:
 
     def _normalize_rsi(self, rsi: float) -> float:
         """
-        Normalize RSI.
-        Extreme values (oversold/overbought) score higher.
-        RSI 30 (oversold) = 80 points
-        RSI 20 (very oversold) = 100 points
-        RSI 50 (neutral) = 20 points
-        RSI 70 (overbought) = 80 points
-        RSI 80 (very overbought) = 100 points
+        V4.1: Normalize RSI for TREND ZONE (58-85).
+        Peak score in trend zone, penalize extremes and middle chop.
+
+        RSI 65-75 (sweet spot) = 100 points
+        RSI 58-64 or 76-85 (good trend) = 70-90 points
+        RSI 50-57 (weak trend) = 30-60 points
+        RSI <50 (oversold/reversal) = 0-20 points
+        RSI >85 (overbought trap) = 0-20 points
         """
-        if rsi < 30:
-            # Oversold: lower is better
-            score = 80 + (30 - rsi) * 2  # 20 RSI = 100 points
-        elif rsi > 70:
-            # Overbought: higher is better
-            score = 80 + (rsi - 70) * 2  # 80 RSI = 100 points
+        if 65 <= rsi <= 75:
+            # Sweet spot: strong trend without extreme
+            score = 100.0
+        elif 58 <= rsi < 65:
+            # Lower trend zone
+            score = 70 + (rsi - 58) * 4.3  # Linear from 70 to 100
+        elif 75 < rsi <= 85:
+            # Upper trend zone
+            score = 100 - (rsi - 75) * 3.0  # Linear from 100 to 70
+        elif 50 <= rsi < 58:
+            # Weak trend
+            score = 30 + (rsi - 50) * 5.0  # Linear from 30 to 70
+        elif rsi > 85:
+            # Overbought trap (hard filter should catch this)
+            score = max(0, 20 - (rsi - 85))
         else:
-            # Neutral zone: low score
-            # RSI 50 = 20, RSI 40 or 60 = 40
-            score = 20 + abs(50 - rsi) * 2
+            # Oversold/reversal zone (hard filter should catch this)
+            score = max(0, rsi / 50 * 30)  # 0-30 points
         return min(100.0, max(0.0, score))
 
     def _normalize_imbalance(self, imbalance: float) -> float:

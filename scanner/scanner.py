@@ -229,17 +229,17 @@ def get_usdt_pairs() -> List[Dict]:
 
 def compute_features(ticker: Dict) -> Optional[ScoringFeatures]:
     """
-    Compute all features required for V3 multi-factor scoring.
+    Compute all features required for V4.1 Sniper Swing scoring.
 
     Features:
     - RVOL (relative volume)
     - Liquidity (24h quote volume)
     - Velocity (24h price change %)
-    - Momentum 15m (last 15m vs 15m ago)
-    - Momentum 1h (last 1h price change)
+    - Momentum 1h (ret_1h_pct)
+    - Momentum 4h (ret_4h_pct) - NEW for v4.1
     - RSI(14) on 1h candles
     - Trend position (price position in 24h range)
-    - Above MA50 (1h)
+    - Above MA50 (1h, 4h, 24h) - EXPANDED for v4.1
     - Orderbook imbalance (optional)
     - Spread (bid-ask)
     - ATR % (volatility)
@@ -285,8 +285,8 @@ def compute_features(ticker: Dict) -> Optional[ScoringFeatures]:
 
             # Above MA50 (1h)
             if len(closes_1h) >= 50:
-                ma50 = sum(closes_1h[-50:]) / 50
-                above_ma_1h = last_price > ma50
+                ma50_1h = sum(closes_1h[-50:]) / 50
+                above_ma_1h = last_price > ma50_1h
             else:
                 above_ma_1h = True  # Default to true if not enough data
 
@@ -298,13 +298,36 @@ def compute_features(ticker: Dict) -> Optional[ScoringFeatures]:
             above_ma_1h = True
             atr_pct = 2.0
 
-        # Fetch 15m candles for short-term momentum
-        candles_15m = get_candles(symbol, "15m", limit=10)
-        if candles_15m and len(candles_15m) >= 2:
-            # Momentum 15m: last vs 15m ago
-            momentum_15m_pct = ((candles_15m[-1]["close"] - candles_15m[-2]["close"]) / candles_15m[-2]["close"]) * 100
+        # V4.1: Fetch 4h candles for momentum and MA
+        candles_4h = get_candles(symbol, "4h", limit=50)
+        if candles_4h and len(candles_4h) >= 2:
+            # Momentum 4h: last candle vs candle 4h ago
+            momentum_4h_pct = ((candles_4h[-1]["close"] - candles_4h[-2]["close"]) / candles_4h[-2]["close"]) * 100
+
+            # Above MA50 (4h)
+            closes_4h = [c["close"] for c in candles_4h]
+            if len(closes_4h) >= 50:
+                ma50_4h = sum(closes_4h[-50:]) / 50
+                above_ma_4h = last_price > ma50_4h
+            else:
+                above_ma_4h = True
         else:
-            momentum_15m_pct = 0.0
+            momentum_4h_pct = 0.0
+            above_ma_4h = True
+
+        # V4.1: Fetch 24h candles for MA (daily timeframe)
+        candles_24h = get_candles(symbol, "1d", limit=50)
+        if candles_24h and len(candles_24h) >= 2:
+            closes_24h = [c["close"] for c in candles_24h]
+            if len(closes_24h) >= 50:
+                ma50_24h = sum(closes_24h[-50:]) / 50
+                above_ma_24h = last_price > ma50_24h
+            else:
+                above_ma_24h = True
+        else:
+            above_ma_24h = True
+
+        # V4.1: NO 15m candles (anti-scalping)
 
         # Orderbook imbalance (optional)
         if config.CHECK_ORDER_BOOK_IMBALANCE:
@@ -321,7 +344,7 @@ def compute_features(ticker: Dict) -> Optional[ScoringFeatures]:
         except Exception:
             spread_bps = 10.0
 
-        # Create features dataclass
+        # Create features dataclass with v4.1 additions
         features = ScoringFeatures(
             symbol=symbol,
             last_price=last_price,
@@ -329,7 +352,7 @@ def compute_features(ticker: Dict) -> Optional[ScoringFeatures]:
             liquidity_usd_24h=liquidity_usd_24h,
             velocity_24h_pct=velocity_24h_pct,
             momentum_1h_pct=momentum_1h_pct,
-            momentum_15m_pct=momentum_15m_pct,
+            momentum_15m_pct=momentum_4h_pct,  # Reuse 15m field for 4h to avoid schema change
             rsi_14=rsi_14,
             trend_position=trend_position,
             above_ma_1h=above_ma_1h,
@@ -337,6 +360,11 @@ def compute_features(ticker: Dict) -> Optional[ScoringFeatures]:
             spread_bps=spread_bps,
             atr_pct=atr_pct
         )
+
+        # Store additional v4.1 features as attributes
+        features.momentum_4h_pct = momentum_4h_pct
+        features.above_ma_4h = above_ma_4h
+        features.above_ma_24h = above_ma_24h
 
         return features
 
@@ -406,19 +434,27 @@ def run_scanner() -> int:
             feature_failures += 1
             continue
 
-        # V3: Directional movement filters (no flat/choppy coins)
-        # Require real movement, not just noise
-        momentum_ok = abs(features.momentum_1h_pct) >= 1.0  # At least 1% move in 1h
-        velocity_ok = abs(features.velocity_24h_pct) >= 2.0  # At least 2% move in 24h
-        rsi_ok = features.rsi_14 <= 40 or features.rsi_14 >= 60  # Oversold or overbought, not middle
+        # V4.1: Sniper Swing directional filters (HARD FILTERS - ALL MUST PASS)
+        # Long-only uptrend momentum with timeframe alignment
+        ret_1h_ok = features.momentum_1h_pct >= 1.0  # Positive 1h move
+        ret_4h_ok = features.momentum_4h_pct >= 2.0  # Positive 4h move
+        ret_24h_ok = features.velocity_24h_pct >= 2.0  # Positive 24h trend
+        same_direction = (features.momentum_1h_pct > 0 and features.momentum_4h_pct > 0)  # 1h & 4h aligned
+        rvol_ok = features.rvol >= 2.0  # Volume confirmation
+        rsi_ok = 58 <= features.rsi_14 <= 85  # Trend zone (not oversold, not extreme overbought)
+        above_ma_24h_ok = features.above_ma_24h  # Must be above 24h MA50
 
-        if not (momentum_ok and velocity_ok and rsi_ok):
+        if not (ret_1h_ok and ret_4h_ok and ret_24h_ok and same_direction and rvol_ok and rsi_ok and above_ma_24h_ok):
             directional_blocked += 1
             logger.debug(
-                f"🚫 {symbol} blocked by directional filters: "
-                f"mom_1h={features.momentum_1h_pct:.1f}% (need ≥1%), "
-                f"vel_24h={features.velocity_24h_pct:.1f}% (need ≥2%), "
-                f"rsi={features.rsi_14:.0f} (need ≤40 or ≥60)"
+                f"🚫 {symbol} blocked by v4.1 filters: "
+                f"ret_1h={features.momentum_1h_pct:.1f}% (need ≥1.0), "
+                f"ret_4h={features.momentum_4h_pct:.1f}% (need ≥2.0), "
+                f"ret_24h={features.velocity_24h_pct:.1f}% (need ≥2.0), "
+                f"aligned={'✓' if same_direction else '✗'}, "
+                f"rvol={features.rvol:.2f} (need ≥2.0), "
+                f"rsi={features.rsi_14:.0f} (need 58-85), "
+                f"above_ma_24h={'✓' if features.above_ma_24h else '✗'}"
             )
             continue
 
