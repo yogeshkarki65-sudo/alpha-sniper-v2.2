@@ -6,6 +6,7 @@ from config.config import config
 from database.models import db
 from risk.risk_manager import risk_manager
 from monitoring.telegram_alerter import send_alert
+from monitoring.observer import get_observer
 
 def get_current_price(symbol):
     try:
@@ -17,6 +18,24 @@ def get_current_price(symbol):
     except Exception as e:
         print(f"Error fetching price for {symbol}: {e}")
         return None
+
+def record_trade_in_observer(symbol, entry_price, exit_price, exit_reason):
+    """Record closed trade in performance observer"""
+    try:
+        pnl_pct = ((exit_price - entry_price) / entry_price) * 100
+
+        trade_dict = {
+            'symbol': symbol,
+            'entry_price': entry_price,
+            'exit_price': exit_price,
+            'pnl_pct': pnl_pct,
+            'exit_reason': exit_reason
+        }
+
+        observer = get_observer()
+        observer.record_trade(trade_dict)
+    except Exception as e:
+        print(f"Error recording trade in observer: {e}")
 
 def check_symbol_cooldown(symbol):
     cooldown_time = datetime.now() - timedelta(hours=config.SYMBOL_COOLDOWN_HOURS)
@@ -128,6 +147,7 @@ def monitor_positions():
         if hold_time_hours >= config.MAX_HOLD_TIME_HOURS:
             exit_price = current_price * (1 - config.SLIPPAGE_PCT / 100)
             db.close_position(position_id, exit_price, 'time_exit')
+            record_trade_in_observer(symbol, entry_price, exit_price, 'time_exit')
             print(f"⏰ CLOSED (time): {symbol} @ ${exit_price:.6f} | PnL: {current_profit_pct:.2f}%")
             send_alert(f"⏰ Time Exit: {symbol} | PnL: {current_profit_pct:.2f}%")
             continue
@@ -146,6 +166,7 @@ def monitor_positions():
                 if current_price <= trailing_stop_price:
                     exit_price = current_price * (1 - config.SLIPPAGE_PCT / 100)
                     db.close_position(position_id, exit_price, 'trailing_stop')
+                    record_trade_in_observer(symbol, entry_price, exit_price, 'trailing_stop')
                     print(f"📉 CLOSED (trailing): {symbol} @ ${exit_price:.6f} | PnL: {current_profit_pct:.2f}%")
                     send_alert(f"📉 Trailing Stop: {symbol} | PnL: {current_profit_pct:.2f}%")
                     continue
@@ -153,13 +174,15 @@ def monitor_positions():
         if current_price <= stop_loss_price:
             exit_price = current_price * (1 - config.SLIPPAGE_PCT / 100)
             db.close_position(position_id, exit_price, 'stop_loss')
+            record_trade_in_observer(symbol, entry_price, exit_price, 'stop_loss')
             print(f"🛑 CLOSED (SL): {symbol} @ ${exit_price:.6f} | PnL: {current_profit_pct:.2f}%")
             send_alert(f"🛑 Stop Loss: {symbol} | PnL: {current_profit_pct:.2f}%")
             continue
-        
+
         if current_price >= take_profit_price:
             exit_price = current_price * (1 - config.SLIPPAGE_PCT / 100)
             db.close_position(position_id, exit_price, 'take_profit')
+            record_trade_in_observer(symbol, entry_price, exit_price, 'take_profit')
             print(f"💰 CLOSED (TP): {symbol} @ ${exit_price:.6f} | PnL: {current_profit_pct:.2f}%")
             send_alert(f"💰 Take Profit: {symbol} | PnL: {current_profit_pct:.2f}%")
             continue

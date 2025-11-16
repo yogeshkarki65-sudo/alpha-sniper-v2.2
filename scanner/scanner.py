@@ -4,6 +4,7 @@ from config.config import config
 from database.models import db
 from scanner.orderbook import get_orderbook_imbalance, get_spread_pct
 from scanner.scorer import calculate_score
+from monitoring.observer import get_observer
 
 
 def get_usdt_pairs():
@@ -151,6 +152,11 @@ def run_scanner():
                 f["last_price"],
             )
             signals_created += 1
+
+            # Record signal in observer
+            observer = get_observer()
+            observer.record_signal(f["symbol"], score, f)
+
             print(
                 f"[scanner] ✅ Signal: {f['symbol']} "
                 f"score={score:.1f} rvol={f['rvol']:.2f} "

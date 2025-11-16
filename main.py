@@ -1,6 +1,10 @@
 import schedule
 import time
+import threading
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from config.config import config
 from scanner.scanner import run_scanner
@@ -10,6 +14,9 @@ from monitoring.reporter import generate_daily_report
 from monitoring.healthcheck import start_healthcheck_server
 from monitoring import healthcheck as hc
 from monitoring.telegram_alerter import send_alert
+from monitoring.observer import get_observer
+from monitoring.v42_fallback import apply_v42_fallback
+from monitoring.telegram_bot import start_telegram_bot
 from risk.daily_reset import run_daily_reset
 from deployment.capital_manager import check_scale_up
 
@@ -56,15 +63,46 @@ def capital_scale_job():
     except Exception as e:
         print(f"Capital manager error: {e}")
 
+def observer_loop():
+    """
+    Background thread that checks hourly if v4.2 fallback should be activated
+    Activates when v4.1.1 has run for 6+ hours with zero signals
+    """
+    try:
+        while True:
+            time.sleep(3600)  # Check every hour
+
+            observer = get_observer()
+            if observer.should_activate_v42():
+                apply_v42_fallback()
+                observer.mark_v42_activated()
+                break  # Stop checking once activated
+
+    except Exception as e:
+        logger.error(f"Observer loop error: {e}")
+        send_alert(f"⚠️ Observer Loop Error: {str(e)}")
+
 def main():
     print("=" * 60)
-    print("🚀 ALPHA SNIPER V2 - Starting...")
+    print("🚀 ALPHA SNIPER V4.1.1 - Starting...")
     print("=" * 60)
-    
+
+    # Initialize performance observer
+    observer = get_observer()
+    print("✅ v4.1.1 LIVE | Observer Active | Monitoring for 6h")
+
+    # Start Telegram bot with command handlers
+    start_telegram_bot()
+
+    # Start observer loop in background thread
+    observer_thread = threading.Thread(target=observer_loop, daemon=True)
+    observer_thread.start()
+    print("✅ Observer loop started (checks hourly for v4.2 fallback)")
+
     start_healthcheck_server()
     print("✅ Health check server started on port 8080")
-    
-    send_alert("🚀 Alpha Sniper V2 started successfully")
+
+    send_alert("🚀 Alpha Sniper v4.1.1 started successfully\n\nPerformance monitoring active - /status for stats")
     
     schedule.every(config.SCANNER_INTERVAL).seconds.do(scanner_job)
     schedule.every(config.TRADER_INTERVAL).seconds.do(trader_job)
