@@ -24,7 +24,7 @@ class Config:
     # === STRATEGY ===
     STRATEGY: str = os.getenv('STRATEGY', 'sniper_swing')
     DIRECTION: str = os.getenv('DIRECTION', 'long_only')
-    MIN_SIGNAL_SCORE: float = float(os.getenv('MIN_SIGNAL_SCORE', '62'))
+    MIN_SIGNAL_SCORE: float = float(os.getenv('MIN_SIGNAL_SCORE', '65'))
     SYMBOL_COOLDOWN_HOURS: float = float(os.getenv('SYMBOL_COOLDOWN_HOURS', '12'))
 
     # === TIMEFRAMES ===
@@ -59,7 +59,7 @@ class Config:
 
     # === RISK & EXIT ===
     RISK_PER_TRADE_PCT: float = float(os.getenv('RISK_PER_TRADE_PCT', '3.0'))
-    STOP_LOSS_PCT: float = float(os.getenv('STOP_LOSS_PCT', '3.5'))
+    STOP_LOSS_PCT: float = float(os.getenv('STOP_LOSS_PCT', '3.0'))
     TAKE_PROFIT_PCT: float = float(os.getenv('TAKE_PROFIT_PCT', '10.0'))
     MAX_CONCURRENT_POS: int = int(os.getenv('MAX_CONCURRENT_POSITIONS', '3'))
     MAX_DAILY_DRAWDOWN_PCT: float = float(os.getenv('MAX_DAILY_DRAWDOWN_PCT', '15.0'))
