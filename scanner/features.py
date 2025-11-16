@@ -4,6 +4,7 @@ Multi-timeframe indicators: RSI, EMA, returns, volume ratios
 """
 from typing import List, Dict, Optional, Tuple
 import numpy as np
+from config.config import config
 from config.logging_config import logger
 from scanner.mexc_client import mexc_client
 
