@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 import threading
+from config.config import config
 
 
 class PerformanceObserver:
@@ -85,15 +86,19 @@ class PerformanceObserver:
     def should_activate_v42(self) -> bool:
         """
         Determine if v4.2 fallback should be activated
-        Criteria: Running for >6 hours AND zero signals generated
+        Criteria: Running for >FALLBACK_TRIGGER_HOURS hours AND zero signals generated
+        Only activates if ENABLE_V42_FALLBACK is True
         """
         with self._lock:
             if self.v42_activated:
                 return False  # Already activated
 
+            if not config.ENABLE_V42_FALLBACK:
+                return False  # Fallback disabled
+
             runtime_hours = (time.time() - self.start_time) / 3600
 
-            should_activate = runtime_hours > 6.0 and self.signals_recorded == 0
+            should_activate = runtime_hours > config.FALLBACK_TRIGGER_HOURS and self.signals_recorded == 0
 
             if should_activate:
                 self.v42_activated = True

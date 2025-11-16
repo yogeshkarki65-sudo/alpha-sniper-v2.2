@@ -21,13 +21,27 @@ def status_command(update: Update, context: CallbackContext) -> None:
         stats = observer.get_stats()
         filter_config = get_current_filter_config()
 
+        # Determine current mode
+        if stats['v42_activated']:
+            mode_display = f"v4.2 Adaptive (MIN_SCORE={config.MIN_SIGNAL_SCORE})"
+        else:
+            mode_display = f"v4.1.1 Standard (MIN_SCORE={config.MIN_SIGNAL_SCORE})"
+
         # Build status message
         msg = (
-            f"📊 <b>v4.1.1 OBSERVER STATUS</b>\n\n"
+            f"📊 <b>ALPHA SNIPER STATUS</b>\n\n"
             f"<b>Runtime:</b> {stats['runtime']}\n"
             f"<b>Started:</b> {stats['start_time']}\n"
-            f"<b>Mode:</b> {'v4.2 Adaptive' if stats['v42_activated'] else 'v4.1.1 Standard'}\n\n"
+            f"<b>Mode:</b> {mode_display}\n"
+        )
 
+        # Show fallback config
+        if config.ENABLE_V42_FALLBACK:
+            msg += f"<b>Fallback:</b> Enabled ({config.MIN_SIGNAL_SCORE_FALLBACK} @ {config.FALLBACK_TRIGGER_HOURS}h)\n\n"
+        else:
+            msg += f"<b>Fallback:</b> Disabled\n\n"
+
+        msg += (
             f"<b>SIGNALS</b>\n"
             f"  Total: {stats['signals']}\n"
             f"  Avg Score: {stats['avg_score']:.1f}\n"
@@ -51,8 +65,8 @@ def status_command(update: Update, context: CallbackContext) -> None:
         )
 
         # Add warning if approaching fallback
-        if not stats['v42_activated'] and stats['signals'] == 0:
-            hours_left = 6.0 - stats['runtime_hours']
+        if config.ENABLE_V42_FALLBACK and not stats['v42_activated'] and stats['signals'] == 0:
+            hours_left = config.FALLBACK_TRIGGER_HOURS - stats['runtime_hours']
             if hours_left > 0:
                 msg += f"\n⚠️ v4.2 fallback in {hours_left:.1f}h if no signals"
             else:

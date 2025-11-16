@@ -99,12 +99,21 @@ def get_filter_config_summary() -> str:
     """
     Return current filter configuration as formatted string
     """
+    # Build fallback info string
+    if config.ENABLE_V42_FALLBACK:
+        fallback_info = f"ENABLED (base={config.MIN_SIGNAL_SCORE} → fallback={config.MIN_SIGNAL_SCORE_FALLBACK} after {config.FALLBACK_TRIGGER_HOURS}h)"
+    else:
+        fallback_info = "DISABLED"
+
     summary = f"""
 ENTRY FILTERS ACTIVE:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Signal Scoring:
   • Min Signal Score: {config.MIN_SIGNAL_SCORE}
   • Check Orderbook Imbalance: {config.CHECK_ORDER_BOOK_IMBALANCE}
+
+v4.2 Adaptive Fallback:
+  • Status: {fallback_info}
 
 Risk Management:
   • Min Liquidity (24h): ${config.MIN_LIQUIDITY_VOLUME_24H:,.0f}

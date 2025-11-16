@@ -32,17 +32,14 @@ class FilterLogger:
         self.rejection_counts[reason] += 1
         self.detailed_rejections.append((symbol, reason))
 
+        # Only log individual rejections in debug mode
         if self.debug_mode:
             if details:
+                print(f"[FILTER] {symbol} rejected: {reason} ({details})")
                 logger.info(f"[FILTER] {symbol} rejected: {reason} ({details})")
             else:
-                logger.info(f"[FILTER] {symbol} rejected: {reason}")
-        else:
-            # In non-debug mode, only log to console for visibility
-            if details:
-                print(f"[FILTER] {symbol} rejected: {reason} ({details})")
-            else:
                 print(f"[FILTER] {symbol} rejected: {reason}")
+                logger.info(f"[FILTER] {symbol} rejected: {reason}")
 
     def log_pass(self, symbol: str):
         """Log a symbol passing all filters"""

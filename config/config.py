@@ -63,6 +63,11 @@ class Config:
     # Debug & Logging
     DEBUG_FILTERS = os.getenv('DEBUG_FILTERS', 'false').lower() == 'true'
 
+    # v4.2 Adaptive Fallback
+    ENABLE_V42_FALLBACK = os.getenv('ENABLE_V42_FALLBACK', 'true').lower() == 'true'
+    MIN_SIGNAL_SCORE_FALLBACK = float(os.getenv('MIN_SIGNAL_SCORE_FALLBACK', 63))
+    FALLBACK_TRIGGER_HOURS = float(os.getenv('FALLBACK_TRIGGER_HOURS', 6.0))
+
     # Intervals
     SCANNER_INTERVAL = int(os.getenv('SCANNER_INTERVAL', 300))
     TRADER_INTERVAL = int(os.getenv('TRADER_INTERVAL', 60))
