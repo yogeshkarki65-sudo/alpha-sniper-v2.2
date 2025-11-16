@@ -14,6 +14,10 @@ class MEXCClient:
     def __init__(self):
         self.base_url = config.MEXC_BASE_URL
         self.timeout = 10
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json'
+        }
 
     def get_24h_tickers(self) -> List[Dict[str, Any]]:
         """
@@ -23,7 +27,7 @@ class MEXCClient:
         try:
             url = f"{self.base_url}/api/v3/ticker/24hr"
             logger.debug(f"Fetching 24h tickers from: {url}")
-            resp = requests.get(url, timeout=self.timeout)
+            resp = requests.get(url, headers=self.headers, timeout=self.timeout)
             resp.raise_for_status()
             tickers = resp.json()
             logger.info(f"Fetched {len(tickers)} 24h tickers")
@@ -63,7 +67,7 @@ class MEXCClient:
                 'interval': mexc_interval,
                 'limit': limit
             }
-            resp = requests.get(url, params=params, timeout=self.timeout)
+            resp = requests.get(url, params=params, headers=self.headers, timeout=self.timeout)
 
             # Don't raise for 400 - just log and return empty
             if resp.status_code == 400:
@@ -87,7 +91,7 @@ class MEXCClient:
         try:
             url = f"{self.base_url}/api/v3/ticker/price"
             params = {'symbol': symbol}
-            resp = requests.get(url, params=params, timeout=5)
+            resp = requests.get(url, params=params, headers=self.headers, timeout=5)
             resp.raise_for_status()
             data = resp.json()
             return float(data['price'])
@@ -106,7 +110,7 @@ class MEXCClient:
         try:
             url = f"{self.base_url}/api/v3/depth"
             params = {'symbol': symbol, 'limit': limit}
-            resp = requests.get(url, params=params, timeout=5)
+            resp = requests.get(url, params=params, headers=self.headers, timeout=5)
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
