@@ -17,6 +17,7 @@ from monitoring.telegram_alerter import send_alert
 from monitoring.observer import get_observer
 from monitoring.v42_fallback import apply_v42_fallback
 from monitoring.telegram_bot import start_telegram_bot
+from scanner.validator import get_filter_config_summary
 from risk.daily_reset import run_daily_reset
 from deployment.capital_manager import check_scale_up
 
@@ -83,9 +84,12 @@ def observer_loop():
         send_alert(f"⚠️ Observer Loop Error: {str(e)}")
 
 def main():
-    print("=" * 60)
+    print("\n" + "=" * 60)
     print("🚀 ALPHA SNIPER V4.1.1 - Starting...")
     print("=" * 60)
+
+    # Display comprehensive filter configuration
+    print(get_filter_config_summary())
 
     # Initialize performance observer
     observer = get_observer()
@@ -102,21 +106,24 @@ def main():
     start_healthcheck_server()
     print("✅ Health check server started on port 8080")
 
+    # Show runtime configuration
+    print(f"\n📅 Scheduler Configuration:")
+    print(f"  • Scanner: every {config.SCANNER_INTERVAL}s")
+    print(f"  • Trader: every {config.TRADER_INTERVAL}s")
+    print(f"  • Learning: every {config.LEARNING_INTERVAL}s")
+    print(f"  • Daily report: {config.DAILY_REPORT_HOUR}:00 UTC")
+    print(f"  • Mode: {config.MODE}")
+    print("=" * 60 + "\n")
+
     send_alert("🚀 Alpha Sniper v4.1.1 started successfully\n\nPerformance monitoring active - /status for stats")
-    
+
     schedule.every(config.SCANNER_INTERVAL).seconds.do(scanner_job)
     schedule.every(config.TRADER_INTERVAL).seconds.do(trader_job)
     schedule.every(config.LEARNING_INTERVAL).seconds.do(learning_job)
-    
+
     schedule.every().day.at(f"{config.DAILY_REPORT_HOUR:02d}:00").do(report_job)
     schedule.every().day.at("00:00").do(daily_reset_job)
     schedule.every(1).hours.do(capital_scale_job)
-    
-    print(f"📅 Scanner runs every {config.SCANNER_INTERVAL}s")
-    print(f"💼 Trader runs every {config.TRADER_INTERVAL}s")
-    print(f"🧠 Learning runs every {config.LEARNING_INTERVAL}s")
-    print(f"📊 Daily report at {config.DAILY_REPORT_HOUR}:00 UTC")
-    print("=" * 60)
     
     scanner_job()
     

@@ -3,6 +3,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Configuration Precedence Order:
+# 1. Environment Variables (.env file or shell exports) - HIGHEST PRIORITY
+# 2. Config Class Defaults (below) - FALLBACK
+#
+# See docs/CONFIG_PRECEDENCE.md for full documentation
+
 class Config:
     # MEXC
     MEXC_BASE_URL = os.getenv('MEXC_BASE_URL', 'https://api.mexc.com')
@@ -53,7 +59,10 @@ class Config:
     ALERT_ON_DRAWDOWN_PCT = float(os.getenv('ALERT_ON_DRAWDOWN_PCT', 3.0))
     ALERT_ON_WEIGHT_CHANGE_PCT = float(os.getenv('ALERT_ON_WEIGHT_CHANGE_PCT', 10.0))
     DAILY_REPORT_HOUR = int(os.getenv('DAILY_REPORT_HOUR', 9))
-    
+
+    # Debug & Logging
+    DEBUG_FILTERS = os.getenv('DEBUG_FILTERS', 'false').lower() == 'true'
+
     # Intervals
     SCANNER_INTERVAL = int(os.getenv('SCANNER_INTERVAL', 300))
     TRADER_INTERVAL = int(os.getenv('TRADER_INTERVAL', 60))

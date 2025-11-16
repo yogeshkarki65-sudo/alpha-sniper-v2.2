@@ -5,6 +5,7 @@ from database.models import db
 from scanner.orderbook import get_orderbook_imbalance, get_spread_pct
 from scanner.scorer import calculate_score
 from monitoring.observer import get_observer
+from scanner.filter_logger import get_filter_logger, log_filter
 
 
 def get_usdt_pairs():
@@ -120,6 +121,11 @@ def compute_features(ticker):
 
 def run_scanner():
     print("🔍 Running scanner...")
+
+    # Initialize filter logger with debug mode from config
+    filter_log = get_filter_logger(debug_mode=config.DEBUG_FILTERS)
+    filter_log.reset_scan()
+
     pairs = get_usdt_pairs()
     print(f"[scanner] Final universe size: {len(pairs)} symbols")
 
@@ -130,9 +136,15 @@ def run_scanner():
     signals_created = 0
 
     for t in pairs:
+        filter_log.increment_checked()
+
         f = compute_features(t)
         if not f:
+            log_filter(f.get("symbol", "UNKNOWN") if f else t.get("symbol", "UNKNOWN"),
+                      "feature_computation_failed")
             continue
+
+        symbol = f["symbol"]
 
         score = calculate_score(
             f["rvol"],
@@ -141,27 +153,37 @@ def run_scanner():
             f["orderbook_imbalance"],
         )
 
-        if score >= config.MIN_SIGNAL_SCORE:
-            db.create_signal(
-                f["symbol"],
-                score,
-                f["rvol"],
-                f["velocity"],
-                f["trend"],
-                f["orderbook_imbalance"],
-                f["last_price"],
-            )
-            signals_created += 1
+        # Log rejection reason if score too low
+        if score < config.MIN_SIGNAL_SCORE:
+            log_filter(symbol, "score_too_low", f"score={score:.1f} < {config.MIN_SIGNAL_SCORE}")
+            continue
 
-            # Record signal in observer
-            observer = get_observer()
-            observer.record_signal(f["symbol"], score, f)
+        # If we get here, signal passed all filters
+        filter_log.log_pass(symbol)
 
-            print(
-                f"[scanner] ✅ Signal: {f['symbol']} "
-                f"score={score:.1f} rvol={f['rvol']:.2f} "
-                f"vel={f['velocity']:.2f}% trend={f['trend']:.2f} ob={f['orderbook_imbalance']:.2f}"
-            )
+        db.create_signal(
+            f["symbol"],
+            score,
+            f["rvol"],
+            f["velocity"],
+            f["trend"],
+            f["orderbook_imbalance"],
+            f["last_price"],
+        )
+        signals_created += 1
+
+        # Record signal in observer
+        observer = get_observer()
+        observer.record_signal(f["symbol"], score, f)
+
+        print(
+            f"[scanner] ✅ Signal: {f['symbol']} "
+            f"score={score:.1f} rvol={f['rvol']:.2f} "
+            f"vel={f['velocity']:.2f}% trend={f['trend']:.2f} ob={f['orderbook_imbalance']:.2f}"
+        )
+
+    # Print scan summary
+    filter_log.print_scan_summary(signals_created)
 
     print(f"[scanner] Created {signals_created} signals this run")
     return signals_created
