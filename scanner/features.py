@@ -167,6 +167,17 @@ def get_symbol_features(
         else:
             range_pos_24h = 0.5
 
+        # === PULLBACK CHECK (v4.1.1) ===
+        # Check if current price is at/above recent highs (bad - buying breakout tops)
+        # Good entries are pullbacks from recent highs
+        is_pullback = True
+        if config.PREFER_PULLBACKS and len(klines_1h) >= 3:
+            # Get the high prices of the last 2 completed candles
+            high_last_2 = max(float(klines_1h[-2][2]), float(klines_1h[-3][2]))
+            # If current price is >= recent high, it's a breakout (not a pullback)
+            if last_price >= high_last_2:
+                is_pullback = False
+
         # === SPREAD (in bps) ===
         spread_bps = 0.0  # Computed separately in scanner
 
@@ -191,6 +202,7 @@ def get_symbol_features(
             'range_pos_24h': range_pos_24h,
             'spread_bps': spread_bps,
             'orderbook_imbalance': orderbook_imbalance,
+            'is_pullback': is_pullback,
         }
 
     except Exception as e:

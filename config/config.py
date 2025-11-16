@@ -39,9 +39,16 @@ class Config:
     MIN_RET_24H_PCT: float = float(os.getenv('MIN_RET_24H_PCT', '2.0'))
     REQUIRE_SAME_DIRECTION: bool = os.getenv('REQUIRE_SAME_DIRECTION', 'true').lower() == 'true'
     MIN_RVOL_1H: float = float(os.getenv('MIN_RVOL_1H', '2.0'))
-    MIN_RSI_1H: float = float(os.getenv('MIN_RSI_1H', '58'))
-    MAX_RSI_1H: float = float(os.getenv('MAX_RSI_1H', '85'))
+    MIN_RSI_1H: float = float(os.getenv('MIN_RSI_1H', '60'))
+    MAX_RSI_1H: float = float(os.getenv('MAX_RSI_1H', '75'))
     REQUIRE_ABOVE_MA_24H_50: bool = os.getenv('REQUIRE_ABOVE_MA_24H_50', 'true').lower() == 'true'
+
+    # === ENTRY QUALITY FILTERS (v4.1.1) ===
+    REJECT_PARABOLIC_MOVES: bool = os.getenv('REJECT_PARABOLIC_MOVES', 'true').lower() == 'true'
+    PARABOLIC_THRESHOLD: float = float(os.getenv('PARABOLIC_THRESHOLD', '1.5'))
+    REJECT_HIGH_RANGE_ENTRIES: bool = os.getenv('REJECT_HIGH_RANGE_ENTRIES', 'true').lower() == 'true'
+    MAX_RANGE_POSITION_PCT: float = float(os.getenv('MAX_RANGE_POSITION_PCT', '0.85'))
+    PREFER_PULLBACKS: bool = os.getenv('PREFER_PULLBACKS', 'true').lower() == 'true'
 
     # === SCORING WEIGHTS ===
     WEIGHT_TREND: float = float(os.getenv('WEIGHT_TREND', '0.35'))
