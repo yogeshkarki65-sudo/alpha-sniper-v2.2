@@ -340,12 +340,16 @@ class Database:
             return None
 
         # Parse position data
+        # pos[0]=id, [1]=signal_id, [2]=symbol, [3]=entry_price, [4]=position_size,
+        # [5]=stop_loss, [6]=take_profit, [7]=highest_price,
+        # [8]=trailing_active, [9]=trailing_price, [10]=breakeven_moved,
+        # [11]=is_moon_mode, [12]=opened_at (TEXT), [13]=opened_at_timestamp (REAL)
         signal_id = pos[1]
         symbol = pos[2]
         entry_price = pos[3]
         position_size = pos[4]
-        opened_at_ts = pos[11]
-        is_moon_mode = bool(pos[10]) if len(pos) > 10 else False
+        is_moon_mode = bool(pos[11]) if len(pos) > 11 else False
+        opened_at_ts = float(pos[13]) if pos[13] else datetime.now().timestamp()
 
         # Calculate P&L
         entry_value = entry_price * position_size

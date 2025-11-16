@@ -58,8 +58,15 @@ def open_position_from_signal(signal: tuple) -> bool:
         logger.info(f"🚫 Cannot trade: {reason}")
         return False
 
-    # Check correlation
+    # Check for duplicate position (same symbol already open)
     open_positions = db.get_open_positions()
+    open_symbols = [pos[2] for pos in open_positions]  # pos[2] is symbol
+    if symbol in open_symbols:
+        logger.info(f"⚠️ {symbol} already has an open position - skipping duplicate")
+        db.mark_signal_consumed(signal_id)
+        return False
+
+    # Check correlation
     if not risk_manager.check_correlation(symbol, open_positions):
         logger.info(f"⚠️ {symbol} too correlated with existing positions")
         db.mark_signal_consumed(signal_id)
