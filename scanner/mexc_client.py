@@ -3,6 +3,8 @@ Alpha Sniper v4.1 MEXC API Client
 Handles REST API calls for market data (tickers, klines, orderbook)
 """
 import requests
+import subprocess
+import json
 import os
 from typing import List, Dict, Optional, Any
 from config.config import config
@@ -16,13 +18,49 @@ class MEXCClient:
         self.base_url = config.MEXC_BASE_URL
         self.timeout = 10
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'application/json'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Origin': 'https://www.mexc.com',
+            'Referer': 'https://www.mexc.com/',
+            'Connection': 'keep-alive',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-site',
+            'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"'
         }
         # Create session that respects environment proxy settings
         self.session = requests.Session()
         self.session.trust_env = True  # Use environment proxy settings
         self.session.headers.update(self.headers)
+
+    def _curl_get(self, url: str, params: Optional[Dict] = None) -> Optional[Dict]:
+        """
+        Fallback to curl for API calls (MEXC blocks Python requests)
+        """
+        try:
+            if params:
+                url_params = '&'.join([f"{k}={v}" for k, v in params.items()])
+                full_url = f"{url}?{url_params}"
+            else:
+                full_url = url
+
+            result = subprocess.run(
+                ['curl', '-s', '-m', str(self.timeout), full_url],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout + 2
+            )
+
+            if result.returncode == 0 and result.stdout:
+                return json.loads(result.stdout)
+            return None
+        except Exception as e:
+            logger.warning(f"Curl request failed: {e}")
+            return None
 
     def get_24h_tickers(self) -> List[Dict[str, Any]]:
         """
@@ -32,11 +70,15 @@ class MEXCClient:
         try:
             url = f"{self.base_url}/api/v3/ticker/24hr"
             logger.debug(f"Fetching 24h tickers from: {url}")
-            resp = self.session.get(url, timeout=self.timeout)
-            resp.raise_for_status()
-            tickers = resp.json()
-            logger.info(f"Fetched {len(tickers)} 24h tickers")
-            return tickers
+
+            # Use curl (MEXC blocks Python requests)
+            tickers = self._curl_get(url)
+            if tickers and isinstance(tickers, list):
+                logger.info(f"Fetched {len(tickers)} 24h tickers")
+                return tickers
+            else:
+                logger.warning("No tickers received from exchange")
+                return []
         except Exception as e:
             logger.error(f"Error fetching 24h tickers: {e}")
             return []
@@ -72,16 +114,14 @@ class MEXCClient:
                 'interval': mexc_interval,
                 'limit': limit
             }
-            resp = self.session.get(url, params=params, timeout=self.timeout)
 
-            # Don't raise for 400 - just log and return empty
-            if resp.status_code == 400:
-                logger.debug(f"Klines not available for {symbol} {mexc_interval}: {resp.text[:100]}")
+            # Use curl (MEXC blocks Python requests)
+            klines = self._curl_get(url, params)
+            if klines and isinstance(klines, list):
+                return klines
+            else:
+                logger.debug(f"Klines not available for {symbol} {mexc_interval}")
                 return []
-
-            resp.raise_for_status()
-            klines = resp.json()
-            return klines
         except Exception as e:
             logger.warning(f"Error fetching klines for {symbol} {interval}: {e}")
             return []
@@ -96,10 +136,12 @@ class MEXCClient:
         try:
             url = f"{self.base_url}/api/v3/ticker/price"
             params = {'symbol': symbol}
-            resp = self.session.get(url, params=params, timeout=5)
-            resp.raise_for_status()
-            data = resp.json()
-            return float(data['price'])
+
+            # Use curl (MEXC blocks Python requests)
+            data = self._curl_get(url, params)
+            if data and 'price' in data:
+                return float(data['price'])
+            return None
         except Exception as e:
             logger.warning(f"Error fetching price for {symbol}: {e}")
             return None
@@ -115,9 +157,12 @@ class MEXCClient:
         try:
             url = f"{self.base_url}/api/v3/depth"
             params = {'symbol': symbol, 'limit': limit}
-            resp = self.session.get(url, params=params, timeout=5)
-            resp.raise_for_status()
-            return resp.json()
+
+            # Use curl (MEXC blocks Python requests)
+            data = self._curl_get(url, params)
+            if data:
+                return data
+            return None
         except Exception as e:
             logger.warning(f"Error fetching orderbook for {symbol}: {e}")
             return None
