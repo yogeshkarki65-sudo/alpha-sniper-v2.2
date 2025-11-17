@@ -41,7 +41,7 @@ def get_usdt_pairs():
 
     # Sort by quote volume (desc) and keep top N
     usdt.sort(key=lambda x: x[0], reverse=True)
-    TOP_N = 60
+    TOP_N = 200  # Increased from 60 to capture more big movers
     top = usdt[:TOP_N]
 
     print(f"[scanner] Got {len(usdt)} USDT pairs, using top {len(top)} by volume")
@@ -54,9 +54,9 @@ def get_usdt_pairs():
             if qvol < config.MIN_LIQUIDITY_VOLUME_24H:
                 continue
 
-            # Spread filter
+            # Spread filter - increased tolerance for volatile coins
             spread = get_spread_pct(symbol)
-            if spread > 0.5:
+            if spread > 2.0:  # Increased from 0.5% to 2.0% to capture big movers
                 continue
 
             filtered.append(t)

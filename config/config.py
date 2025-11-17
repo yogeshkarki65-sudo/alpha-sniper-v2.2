@@ -14,8 +14,8 @@ class Config:
     
     # Risk Management
     MAX_DAILY_DRAWDOWN_PCT = float(os.getenv('MAX_DAILY_DRAWDOWN_PCT', 2.0))
-    MAX_POSITION_RISK_PCT = float(os.getenv('MAX_POSITION_RISK_PCT', 0.5))
-    MIN_LIQUIDITY_VOLUME_24H = float(os.getenv('MIN_LIQUIDITY_VOLUME_24H', 100000))
+    MAX_POSITION_RISK_PCT = float(os.getenv('MAX_POSITION_RISK_PCT', 0.25))  # Reduced from 0.5% to 0.25%
+    MIN_LIQUIDITY_VOLUME_24H = float(os.getenv('MIN_LIQUIDITY_VOLUME_24H', 30000))  # Reduced from 100k to 30k
     MAX_CORRELATED_POSITIONS = int(os.getenv('MAX_CORRELATED_POSITIONS', 2))
     TRADING_PAUSED = os.getenv('TRADING_PAUSED', 'false').lower() == 'true'
     
@@ -26,8 +26,8 @@ class Config:
     
     # Exits
     USE_TRAILING_STOP = os.getenv('USE_TRAILING_STOP', 'true').lower() == 'true'
-    TRAILING_STOP_ACTIVATION_PCT = float(os.getenv('TRAILING_STOP_ACTIVATION_PCT', 2.0))
-    TRAILING_STOP_DISTANCE_PCT = float(os.getenv('TRAILING_STOP_DISTANCE_PCT', 1.0))
+    TRAILING_STOP_ACTIVATION_PCT = float(os.getenv('TRAILING_STOP_ACTIVATION_PCT', 5.0))  # Increased from 2% to 5%
+    TRAILING_STOP_DISTANCE_PCT = float(os.getenv('TRAILING_STOP_DISTANCE_PCT', 2.5))  # Increased from 1% to 2.5%
     MAX_HOLD_TIME_HOURS = float(os.getenv('MAX_HOLD_TIME_HOURS', 24))
     
     # Fees
@@ -36,10 +36,10 @@ class Config:
     
     # Signals
     MIN_SIGNAL_SCORE = float(os.getenv('MIN_SIGNAL_SCORE', 70))
-    SYMBOL_COOLDOWN_HOURS = float(os.getenv('SYMBOL_COOLDOWN_HOURS', 6))
+    SYMBOL_COOLDOWN_HOURS = float(os.getenv('SYMBOL_COOLDOWN_HOURS', 1))  # Reduced from 6h to 1h
     CHECK_ORDER_BOOK_IMBALANCE = os.getenv('CHECK_ORDER_BOOK_IMBALANCE', 'true').lower() == 'true'
     MOON_SCORE = float(os.getenv('MOON_SCORE', 90))
-    MOON_MULT = float(os.getenv('MOON_MULT', 1.5))
+    MOON_MULT = float(os.getenv('MOON_MULT', 1.2))  # Reduced from 1.5x to 1.2x for safer sizing
     
     # Learning
     LEARNING_ENABLED = os.getenv('LEARNING_ENABLED', 'true').lower() == 'true'
