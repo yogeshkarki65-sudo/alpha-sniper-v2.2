@@ -4,6 +4,7 @@ Provides /status command for real-time v4.1.1 performance monitoring
 """
 import threading
 import time
+import asyncio
 from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, CallbackContext
 from config.config import config
@@ -95,22 +96,32 @@ def start_telegram_bot() -> None:
         logger.warning("TELEGRAM_BOT_TOKEN not configured, bot commands disabled")
         return
 
+    async def run_bot_async():
+        """Async function to run the bot"""
+        # Build application using the new API
+        application = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
+
+        # Register command handlers
+        application.add_handler(CommandHandler('status', status_command))
+        application.add_handler(CommandHandler('help', help_command))
+        application.add_handler(CommandHandler('start', help_command))
+
+        logger.info("Telegram bot started, listening for commands...")
+        print("✅ Telegram bot ready - /status command available")
+
+        # Initialize and run the bot
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+
+        # Keep running
+        while True:
+            await asyncio.sleep(1)
+
     def run_bot():
+        """Wrapper to run async bot in a thread"""
         try:
-            # Build application using the new API
-            application = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
-
-            # Register command handlers
-            application.add_handler(CommandHandler('status', status_command))
-            application.add_handler(CommandHandler('help', help_command))
-            application.add_handler(CommandHandler('start', help_command))
-
-            logger.info("Telegram bot started, listening for commands...")
-            print("✅ Telegram bot ready - /status command available")
-
-            # Run the bot
-            application.run_polling(allowed_updates=Update.ALL_TYPES)
-
+            asyncio.run(run_bot_async())
         except Exception as e:
             logger.error(f"Error starting Telegram bot: {e}")
             print(f"⚠️  Telegram bot failed to start: {e}")
