@@ -15,7 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def status_command(update: Update, context: CallbackContext) -> None:
+async def status_command(update: Update, context: CallbackContext) -> None:
     """Handle /status command - show v4.1.1 observer stats"""
     try:
         observer = get_observer()
@@ -73,21 +73,21 @@ def status_command(update: Update, context: CallbackContext) -> None:
             else:
                 msg += f"\n⚠️ v4.2 fallback criteria met"
 
-        update.message.reply_text(msg, parse_mode='HTML')
+        await update.message.reply_text(msg, parse_mode='HTML')
 
     except Exception as e:
         logger.error(f"Error in /status command: {e}")
-        update.message.reply_text(f"Error getting status: {str(e)}")
+        await update.message.reply_text(f"Error getting status: {str(e)}")
 
 
-def help_command(update: Update, context: CallbackContext) -> None:
+async def help_command(update: Update, context: CallbackContext) -> None:
     """Handle /help command"""
     msg = (
         "<b>Alpha Sniper v4.1.1 Bot Commands</b>\n\n"
         "/status - Show current performance stats\n"
         "/help - Show this help message\n"
     )
-    update.message.reply_text(msg, parse_mode='HTML')
+    await update.message.reply_text(msg, parse_mode='HTML')
 
 
 def start_telegram_bot() -> None:
