@@ -106,11 +106,22 @@ def start_telegram_bot() -> None:
         application.add_handler(CommandHandler('help', help_command))
         application.add_handler(CommandHandler('start', help_command))
 
+        # Manually initialize and start (required for background threads)
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+
         logger.info("Telegram bot started, listening for commands...")
         print("✅ Telegram bot ready - /status command available")
 
-        # Run the bot - this handles everything internally
-        await application.run_polling(allowed_updates=Update.ALL_TYPES)
+        # Keep the bot running
+        try:
+            while True:
+                await asyncio.sleep(1)
+        finally:
+            await application.updater.stop()
+            await application.stop()
+            await application.shutdown()
 
     def run_bot():
         """Wrapper to run async bot in a thread"""
