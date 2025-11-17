@@ -115,7 +115,10 @@ def start_telegram_bot() -> None:
     def run_bot():
         """Wrapper to run async bot in a thread"""
         try:
-            asyncio.run(run_bot_async())
+            # Create a new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(run_bot_async())
         except Exception as e:
             logger.error(f"Error starting Telegram bot: {e}")
             print(f"⚠️  Telegram bot failed to start: {e}")
