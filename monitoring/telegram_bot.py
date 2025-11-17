@@ -109,14 +109,8 @@ def start_telegram_bot() -> None:
         logger.info("Telegram bot started, listening for commands...")
         print("✅ Telegram bot ready - /status command available")
 
-        # Initialize and run the bot
-        await application.initialize()
-        await application.start()
-        await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
-
-        # Keep running
-        while True:
-            await asyncio.sleep(1)
+        # Run the bot - this handles everything internally
+        await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
     def run_bot():
         """Wrapper to run async bot in a thread"""
