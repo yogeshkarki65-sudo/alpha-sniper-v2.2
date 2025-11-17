@@ -1,0 +1,108 @@
+{
+  "strategy_name": "Alpha Sniper V2.2 - Full Quant Strategy",
+  "version": "2.2.0",
+  "description": "Regime-aware quant strategy with adaptive thresholds and ATR-based risk management",
+
+  "regime_detection": {
+    "z_bull_threshold": 0.5,
+    "z_bear_threshold": -0.5,
+    "rs_alt_threshold": 0.0,
+    "short_window": 21,
+    "long_window": 180
+  },
+
+  "risk_management": {
+    "risk_pct_bull": 0.004,
+    "risk_pct_sideways": 0.0025,
+    "risk_pct_bear": 0.0012,
+    "max_portfolio_heat": 0.015,
+    "max_daily_loss_pct": 0.02,
+    "max_concurrent_positions": 10
+  },
+
+  "atr_parameters": {
+    "atr_period": 14,
+    "atr_sl_mult": 2.0,
+    "tp1_mult": 2.0,
+    "tp2_mult": 3.0,
+    "trail_mult": 1.5
+  },
+
+  "exit_rules": {
+    "tp1_exit_pct": 0.5,
+    "tp2_exit_pct": 0.3,
+    "use_trailing_stop": true,
+    "trailing_activation": "after_tp1"
+  },
+
+  "adaptive_threshold": {
+    "cold_start_threshold": 0.6,
+    "min_samples_adaptive": 200,
+    "global_warmstart": true,
+    "training_period_days": 30
+  },
+
+  "rvol_thresholds": {
+    "bull": 2.0,
+    "sideways": 3.0,
+    "bear": 4.0
+  },
+
+  "ob_thresholds": {
+    "bull": 1.5,
+    "sideways": 1.5,
+    "bear": 2.0
+  },
+
+  "breakout": {
+    "lookback_periods": 96,
+    "min_candle_size_pct": 0.02,
+    "breakout_buffer": 0.05
+  },
+
+  "pullback": {
+    "min_depth": 0.15,
+    "max_depth": 0.4,
+    "optimal_depth": 0.25
+  },
+
+  "extension_filter": {
+    "atr_multiplier": 1.5,
+    "rsi_threshold": 85
+  },
+
+  "exhaustion_filter": {
+    "return_3d_threshold": 0.5,
+    "range_atr_threshold": 2.5
+  },
+
+  "momentum_bonuses": {
+    "rsi_rank_threshold": 85,
+    "rsi_bonus": 0.1,
+    "rs_alt_z_threshold": 0.5,
+    "rs_alt_bonus": 0.05
+  },
+
+  "backtesting": {
+    "initial_equity": 10000.0,
+    "commission_pct": 0.001,
+    "slippage_pct": 0.0005,
+    "interval": "15m"
+  },
+
+  "data_fetching": {
+    "source": "binance",
+    "fallback_source": "mexc",
+    "cache_enabled": true,
+    "cache_path": "data/historical"
+  },
+
+  "notes": [
+    "This configuration implements the full Alpha Sniper V2.2 quantitative strategy",
+    "All parameters are optimized for 15m timeframe on altcoin pairs",
+    "Risk parameters are regime-aware and automatically adjust",
+    "Adaptive thresholds prevent overfitting to historical data",
+    "ATR-based exits adapt to market volatility",
+    "Parameter sensitivity testing recommended before live trading"
+  ]
+}
