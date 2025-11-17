@@ -5,7 +5,7 @@ Provides /status command for real-time v4.1.1 performance monitoring
 import threading
 import time
 from telegram import Update, Bot
-from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram.ext import Application, CommandHandler, CallbackContext
 from config.config import config
 from monitoring.observer import get_observer
 from monitoring.v42_fallback import get_current_filter_config
@@ -97,19 +97,19 @@ def start_telegram_bot() -> None:
 
     def run_bot():
         try:
-            updater = Updater(token=config.TELEGRAM_BOT_TOKEN, use_context=True)
-            dispatcher = updater.dispatcher
+            # Build application using the new API
+            application = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
 
             # Register command handlers
-            dispatcher.add_handler(CommandHandler('status', status_command))
-            dispatcher.add_handler(CommandHandler('help', help_command))
-            dispatcher.add_handler(CommandHandler('start', help_command))
+            application.add_handler(CommandHandler('status', status_command))
+            application.add_handler(CommandHandler('help', help_command))
+            application.add_handler(CommandHandler('start', help_command))
 
             logger.info("Telegram bot started, listening for commands...")
             print("✅ Telegram bot ready - /status command available")
 
-            updater.start_polling()
-            updater.idle()
+            # Run the bot
+            application.run_polling(allowed_updates=Update.ALL_TYPES)
 
         except Exception as e:
             logger.error(f"Error starting Telegram bot: {e}")
