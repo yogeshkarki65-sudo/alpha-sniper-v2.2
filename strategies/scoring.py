@@ -257,7 +257,7 @@ class AdaptiveThresholdManager:
 
         logger.info(
             f"AdaptiveThresholdManager initialized: "
-            f"cold_start={cold_start_threshold}, min_samples={min_samples}"
+            f"cold_start={cold_start_threshold}, min_samples={self.min_samples}"
         )
 
     def update_score_history(
