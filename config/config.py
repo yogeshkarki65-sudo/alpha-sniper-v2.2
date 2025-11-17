@@ -40,6 +40,18 @@ class Config:
     CHECK_ORDER_BOOK_IMBALANCE = os.getenv('CHECK_ORDER_BOOK_IMBALANCE', 'true').lower() == 'true'
     MOON_SCORE = float(os.getenv('MOON_SCORE', 90))
     MOON_MULT = float(os.getenv('MOON_MULT', 1.2))  # Reduced from 1.5x to 1.2x for safer sizing
+
+    # INTELLIGENT ENTRY v6.0 - 5-Layer Brain
+    ENABLE_VOLUME_EXPLOSION = os.getenv('ENABLE_VOLUME_EXPLOSION', 'true').lower() == 'true'
+    MIN_RVOL_STREAK = int(os.getenv('MIN_RVOL_STREAK', 3))
+    MIN_RVOL_EXPLOSION = float(os.getenv('MIN_RVOL_EXPLOSION', 6.0))
+    ENABLE_BREAKOUT_RETEST = os.getenv('ENABLE_BREAKOUT_RETEST', 'true').lower() == 'true'
+    ENABLE_ORDERBOOK_MOMENTUM = os.getenv('ENABLE_ORDERBOOK_MOMENTUM', 'true').lower() == 'true'
+    MIN_BID_ASK_RATIO = float(os.getenv('MIN_BID_ASK_RATIO', 2.5))
+    MICRO_PULLBACK_PCT_MIN = float(os.getenv('MICRO_PULLBACK_PCT_MIN', 0.6))
+    MICRO_PULLBACK_PCT_MAX = float(os.getenv('MICRO_PULLBACK_PCT_MAX', 1.8))
+    INTELLIGENCE_BONUS = int(os.getenv('INTELLIGENCE_BONUS', 30))
+    MIN_SIGNAL_SCORE_WITH_INTELLIGENCE = float(os.getenv('MIN_SIGNAL_SCORE_WITH_INTELLIGENCE', 80))
     
     # Learning
     LEARNING_ENABLED = os.getenv('LEARNING_ENABLED', 'true').lower() == 'true'

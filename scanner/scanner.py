@@ -4,6 +4,9 @@ from config.config import config
 from database.models import db
 from scanner.orderbook import get_orderbook_imbalance, get_spread_pct
 from scanner.scorer import calculate_score
+from scanner.volume_trend import detect_volume_explosion
+from scanner.breakout_detector import detect_breakout_retest, detect_simple_breakout
+from scanner.orderbook_momentum import detect_orderbook_momentum
 
 
 def get_usdt_pairs():
@@ -14,7 +17,10 @@ def get_usdt_pairs():
     try:
         url = f"{config.MEXC_BASE_URL}/api/v3/ticker/24hr"
         print(f"[scanner] Fetching 24h tickers from: {url}")
-        resp = requests.get(url, timeout=10)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+        }
+        resp = requests.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
         tickers = resp.json()
     except Exception as e:
@@ -117,8 +123,62 @@ def compute_features(ticker):
         return None
 
 
+def check_intelligence_layers(symbol):
+    """
+    INTELLIGENT ENTRY v6.0 - 5-Layer Brain
+    Returns: (intelligence_bonus: int, layers_passed: dict)
+    """
+    layers_passed = {
+        'volume_explosion': False,
+        'breakout_retest': False,
+        'orderbook_momentum': False,
+        'all_layers': False
+    }
+
+    try:
+        # Layer 1: Volume Explosion
+        if config.ENABLE_VOLUME_EXPLOSION:
+            is_vol_exp, rvol, streak = detect_volume_explosion(
+                symbol,
+                min_rvol_streak=config.MIN_RVOL_STREAK,
+                min_rvol_explosion=config.MIN_RVOL_EXPLOSION
+            )
+            layers_passed['volume_explosion'] = is_vol_exp
+
+        # Layer 2: Breakout + Retest
+        if config.ENABLE_BREAKOUT_RETEST:
+            is_br, level, price = detect_breakout_retest(symbol, retest_tolerance_pct=0.5)
+            layers_passed['breakout_retest'] = is_br
+
+        # Layer 3: Orderbook Momentum
+        if config.ENABLE_ORDERBOOK_MOMENTUM:
+            has_mom, ratio, bid_vol, ask_vol = detect_orderbook_momentum(
+                symbol,
+                min_bid_ask_ratio=config.MIN_BID_ASK_RATIO,
+                time_window_sec=300
+            )
+            layers_passed['orderbook_momentum'] = has_mom
+
+        # Check if ALL core layers passed
+        core_layers = [
+            layers_passed['volume_explosion'],
+            layers_passed['breakout_retest'],
+            layers_passed['orderbook_momentum']
+        ]
+        layers_passed['all_layers'] = all(core_layers)
+
+        # Apply intelligence bonus if all layers true
+        intelligence_bonus = config.INTELLIGENCE_BONUS if layers_passed['all_layers'] else 0
+
+        return intelligence_bonus, layers_passed
+
+    except Exception as e:
+        print(f"[intelligence] Error checking layers for {symbol}: {e}")
+        return 0, layers_passed
+
+
 def run_scanner():
-    print("🔍 Running scanner...")
+    print("🔍 Running scanner with INTELLIGENT ENTRY v6.0...")
     pairs = get_usdt_pairs()
     print(f"[scanner] Final universe size: {len(pairs)} symbols")
 
@@ -133,17 +193,26 @@ def run_scanner():
         if not f:
             continue
 
-        score = calculate_score(
+        # Calculate base score
+        base_score = calculate_score(
             f["rvol"],
             f["velocity"],
             f["trend"],
             f["orderbook_imbalance"],
         )
 
-        if score >= config.MIN_SIGNAL_SCORE:
+        # Check intelligence layers
+        intelligence_bonus, layers = check_intelligence_layers(f["symbol"])
+        final_score = base_score + intelligence_bonus
+
+        # Only create signal if final score meets threshold
+        # AND if intelligence_bonus was applied (all layers passed)
+        min_score_required = config.MIN_SIGNAL_SCORE_WITH_INTELLIGENCE if intelligence_bonus > 0 else config.MIN_SIGNAL_SCORE
+
+        if final_score >= min_score_required:
             db.create_signal(
                 f["symbol"],
-                score,
+                final_score,
                 f["rvol"],
                 f["velocity"],
                 f["trend"],
@@ -151,10 +220,13 @@ def run_scanner():
                 f["last_price"],
             )
             signals_created += 1
+
+            intelligence_status = "🧠 INTELLIGENT" if intelligence_bonus > 0 else "📊 BASIC"
             print(
-                f"[scanner] ✅ Signal: {f['symbol']} "
-                f"score={score:.1f} rvol={f['rvol']:.2f} "
-                f"vel={f['velocity']:.2f}% trend={f['trend']:.2f} ob={f['orderbook_imbalance']:.2f}"
+                f"[scanner] ✅ {intelligence_status} Signal: {f['symbol']} "
+                f"score={final_score:.1f} (base={base_score:.1f}+bonus={intelligence_bonus}) "
+                f"rvol={f['rvol']:.2f} vel={f['velocity']:.2f}% "
+                f"layers={layers['volume_explosion']}/{layers['breakout_retest']}/{layers['orderbook_momentum']}"
             )
 
     print(f"[scanner] Created {signals_created} signals this run")

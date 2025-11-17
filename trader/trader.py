@@ -11,7 +11,8 @@ def get_current_price(symbol):
     try:
         url = f"{config.MEXC_BASE_URL}/api/v3/ticker/price"
         params = {'symbol': symbol}
-        resp = requests.get(url, params=params, timeout=5)
+        headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'}
+        resp = requests.get(url, params=params, headers=headers, timeout=5)
         data = resp.json()
         return float(data['price'])
     except Exception as e:

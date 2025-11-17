@@ -5,7 +5,8 @@ def get_orderbook_imbalance(symbol):
     try:
         url = f"{config.MEXC_BASE_URL}/api/v3/depth"
         params = {'symbol': symbol, 'limit': 20}
-        resp = requests.get(url, params=params, timeout=5)
+        headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'}
+        resp = requests.get(url, params=params, headers=headers, timeout=5)
         data = resp.json()
         
         bid_volume = sum(float(bid[1]) for bid in data.get('bids', []))
@@ -23,7 +24,8 @@ def get_spread_pct(symbol):
     try:
         url = f"{config.MEXC_BASE_URL}/api/v3/ticker/bookTicker"
         params = {'symbol': symbol}
-        resp = requests.get(url, params=params, timeout=5)
+        headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'}
+        resp = requests.get(url, params=params, headers=headers, timeout=5)
         data = resp.json()
         
         bid = float(data['bidPrice'])
