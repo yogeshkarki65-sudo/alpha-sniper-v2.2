@@ -12,12 +12,13 @@ import time
 from datetime import datetime
 import argparse
 
-from v3.regime.detector import regime_detector
+from v3.regime.detector import regime_detector, Regime
 from v3.universe.manager import universe_manager
 from v3.scanner.signals import signal_generator
 from v3.trader.executor import trade_executor
 from v3.trader.position_manager import position_manager
 from v3.risk.risk_engine import risk_engine
+from v3.monitoring.telegram_notifier import telegram_notifier
 
 
 class AlphaSniperV3:
@@ -40,6 +41,7 @@ class AlphaSniperV3:
 
         self.last_scan_time = None
         self.last_position_check = None
+        self.last_regime = None  # Track regime changes for Telegram alerts
 
         self.running = False
         self.cycle_count = 0
@@ -54,6 +56,12 @@ class AlphaSniperV3:
         print(f"  Scan Interval: {self.scan_interval / 60:.0f} minutes")
         print(f"  Position Check Interval: {self.position_check_interval / 60:.0f} minutes")
         print("="*70 + "\n")
+
+        # Send Telegram startup alert
+        telegram_notifier.send_startup_alert(
+            mode=trade_executor.mode,
+            equity=risk_engine.current_equity
+        )
 
         self.running = True
 

@@ -210,11 +210,24 @@ class MEXCClient:
             return None
 
         try:
-            # MEXC klines format: [timestamp, open, high, low, close, volume, ...]
-            df = pd.DataFrame(data, columns=[
-                'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                'quote_volume', 'trades', 'taker_buy_base', 'taker_buy_quote', 'ignore'
-            ])
+            # MEXC klines format: Handle variable column counts (8 or 11 columns)
+            num_cols = len(data[0]) if len(data) > 0 else 0
+
+            if num_cols == 8:
+                # Format: [timestamp, open, high, low, close, volume, close_time, quote_volume]
+                df = pd.DataFrame(data, columns=[
+                    'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                    'close_time', 'quote_volume'
+                ])
+            elif num_cols >= 11:
+                # Format: [timestamp, open, high, low, close, volume, close_time, quote_volume, trades, ...]
+                df = pd.DataFrame(data, columns=[
+                    'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                    'close_time', 'quote_volume', 'trades', 'taker_buy_base', 'taker_buy_quote'
+                ])
+            else:
+                print(f"[MEXC] Unexpected klines format: {num_cols} columns")
+                return None
 
             # Convert types
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
