@@ -3,8 +3,8 @@ import time
 from datetime import datetime
 
 from config.config import config
-from scanner.scanner import run_scanner
-from trader.trader import run_trader
+from scanner.scanner_v2 import run_scanner
+from trader.trader_v2 import run_trader
 from learning.self_trainer import run_self_learning
 from monitoring.reporter import generate_daily_report
 from monitoring.healthcheck import start_healthcheck_server
