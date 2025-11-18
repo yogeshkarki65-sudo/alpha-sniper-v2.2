@@ -10,6 +10,7 @@ Sends alerts and reports via Telegram:
 - Error alerts
 """
 import os
+import asyncio
 from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
@@ -21,9 +22,9 @@ try:
     from telegram import Bot
     from telegram.error import TelegramError
     TELEGRAM_AVAILABLE = True
-except ImportError:
+except Exception as e:
     TELEGRAM_AVAILABLE = False
-    print("[Telegram] python-telegram-bot not installed, notifications disabled")
+    print(f"[Telegram] Telegram notifications disabled: {type(e).__name__}: {e}")
 
 
 class TelegramNotifier:
@@ -69,10 +70,13 @@ class TelegramNotifier:
             return False
 
         try:
-            self.bot.send_message(
-                chat_id=self.chat_id,
-                text=message,
-                parse_mode=parse_mode
+            # python-telegram-bot 20.x is async, so we need to run in event loop
+            asyncio.run(
+                self.bot.send_message(
+                    chat_id=self.chat_id,
+                    text=message,
+                    parse_mode=parse_mode
+                )
             )
             return True
 
