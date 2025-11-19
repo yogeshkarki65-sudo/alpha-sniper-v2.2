@@ -70,8 +70,18 @@ class TelegramNotifier:
             return False
 
         try:
-            # python-telegram-bot 20.x is async, so we need to run in event loop
-            asyncio.run(
+            # python-telegram-bot 20.x is async
+            # Use get_event_loop() with run_until_complete() for better compatibility
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_closed():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            loop.run_until_complete(
                 self.bot.send_message(
                     chat_id=self.chat_id,
                     text=message,
@@ -85,7 +95,7 @@ class TelegramNotifier:
             return False
 
         except Exception as e:
-            print(f"[Telegram] Unexpected error: {e}")
+            print(f"[Telegram] Error sending message: {type(e).__name__}: {e}")
             return False
 
     def send_startup_alert(self, mode: str, equity: float):
