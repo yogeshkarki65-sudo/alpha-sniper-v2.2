@@ -232,9 +232,16 @@ class MEXCClient:
         Returns:
             DataFrame with columns: [timestamp, open, high, low, close, volume]
         """
+        # MEXC uses 60m instead of 1h (Binance style)
+        interval_map = {
+            '1h': '60m',  # MEXC doesn't support '1h', use '60m' instead
+        }
+
+        mexc_interval = interval_map.get(interval, interval)
+
         params = {
             'symbol': symbol,
-            'interval': interval,
+            'interval': mexc_interval,
             'limit': min(limit, 1000)
         }
 
