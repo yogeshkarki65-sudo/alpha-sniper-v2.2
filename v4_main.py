@@ -234,17 +234,7 @@ class AlphaSniperV4:
     def _get_universe(self) -> list:
         """Get trading universe (top N by volume)"""
         try:
-            # Fetch all USDT pairs
-            exchange_info = self.mexc_client.get_exchange_info()
-            if not exchange_info:
-                print("[Universe] ERROR: exchange_info is None")
-                return []
-
-            symbols = [s['symbol'] for s in exchange_info.get('symbols', [])
-                      if s['symbol'].endswith('USDT') and s['status'] == 'ENABLED']
-            print(f"[Universe] Found {len(symbols)} USDT pairs")
-
-            # Get 24h tickers
+            # Get 24h tickers (already contains all active symbols)
             tickers_24h = self.mexc_client.get_tickers_24h()
             if not tickers_24h:
                 print("[Universe] ERROR: tickers_24h is empty")
@@ -259,11 +249,16 @@ class AlphaSniperV4:
             candidates = []
             for ticker in tickers_24h:
                 symbol = ticker['symbol']
-                if symbol not in symbols:
+
+                # Only USDT pairs
+                if not symbol.endswith('USDT'):
                     continue
+
+                # Skip excluded symbols
                 if symbol in exclude_symbols:
                     continue
 
+                # Volume filter
                 quote_volume = float(ticker.get('quoteVolume', 0))
                 if quote_volume < min_volume:
                     continue
