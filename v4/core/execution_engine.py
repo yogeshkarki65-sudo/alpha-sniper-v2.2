@@ -164,7 +164,7 @@ class ExecutionEngine:
 
         # Fetch orderbook depth
         try:
-            depth_data = self.mexc_client.get_orderbook(symbol, limit=100)
+            depth_data = self.mexc_client.get_orderbook(symbol, depth=100)
             if not depth_data:
                 return None
 

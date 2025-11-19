@@ -88,7 +88,7 @@ def test_mexc_api():
 
         # Test 6: Orderbook
         print("\n[2.6] Testing get_orderbook(SOLUSDT)...")
-        orderbook = client.get_orderbook('SOLUSDT', limit=10)
+        orderbook = client.get_orderbook('SOLUSDT', depth=10)
         if not orderbook or 'bids' not in orderbook:
             print(f"❌ get_orderbook('SOLUSDT') failed")
             return False
