@@ -327,6 +327,12 @@ class ExecutionEngine:
         4. Validate slippage
         5. Record / blacklist if needed
 
+        BACKTEST REALISM (matches live quirks):
+        - Depth-based slippage modeling
+        - Partial fills capped by orderbook depth
+        - Random order rejections (0.5-1% to simulate exchange overload)
+        - Fees deducted from every fill
+
         Args:
             symbol: Trading pair
             direction: "LONG" or "SHORT"
@@ -338,6 +344,19 @@ class ExecutionEngine:
         Returns:
             ExecutionResult
         """
+        import random
+
+        # RANDOM ORDER REJECTION (0.5% probability)
+        # Simulates: exchange overload, insufficient liquidity edge cases
+        if random.random() < 0.005:  # 0.5% rejection rate
+            return ExecutionResult(
+                success=False,
+                filled=False,
+                fill_price=0.0,
+                fill_size_usdt=0.0,
+                slippage_pct=0.0,
+                reason="REJECTED_EXCHANGE_OVERLOAD"
+            )
         # STEP 1: Check liquidity
         liquidity = self.check_liquidity(symbol)
         if not liquidity:
