@@ -237,15 +237,19 @@ class AlphaSniperV4:
             # Fetch all USDT pairs
             exchange_info = self.mexc_client.get_exchange_info()
             if not exchange_info:
+                print("[Universe] ERROR: exchange_info is None")
                 return []
 
             symbols = [s['symbol'] for s in exchange_info.get('symbols', [])
                       if s['symbol'].endswith('USDT') and s['status'] == 'ENABLED']
+            print(f"[Universe] Found {len(symbols)} USDT pairs")
 
             # Get 24h tickers
             tickers_24h = self.mexc_client.get_tickers_24h()
             if not tickers_24h:
+                print("[Universe] ERROR: tickers_24h is empty")
                 return []
+            print(f"[Universe] Found {len(tickers_24h)} tickers")
 
             # Filter by volume and build universe
             universe_top_n = int(os.getenv('UNIVERSE_TOP_N', 200))
@@ -270,6 +274,8 @@ class AlphaSniperV4:
                     'ticker': ticker
                 })
 
+            print(f"[Universe] {len(candidates)} candidates after volume filter (min ${min_volume:,.0f})")
+
             # Sort by volume, take top N
             candidates.sort(key=lambda x: x['quote_volume'], reverse=True)
             universe = candidates[:universe_top_n]
@@ -278,10 +284,16 @@ class AlphaSniperV4:
             blacklist = self.execution_engine.blacklist.get_blacklisted_symbols()
             universe = [u for u in universe if u['symbol'] not in blacklist]
 
+            print(f"[Universe] Final universe: {len(universe)} symbols")
+            if universe:
+                print(f"[Universe] Top 5 by volume: {[u['symbol'] for u in universe[:5]]}")
+
             return universe
 
         except Exception as e:
             print(f"[Universe] ERROR: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
     def _execute_signals(self, signals: list, regime: Regime, details: dict):
