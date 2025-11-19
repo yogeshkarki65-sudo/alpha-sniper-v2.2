@@ -65,32 +65,47 @@ class EdgeDetector:
 
         market_type = os.getenv('MARKET_TYPE', 'SPOT')
         if market_type != 'FUTURES':
-            # Funding only available on futures
+            # SPOT mode: Funding not available, skip silently
+            # This is expected and not an error
             return False, 0.0
 
-        # TODO: Fetch funding rate and OI from MEXC futures API
-        # For now, placeholder logic
-        funding_rate = 0.0  # Would fetch from API
-        oi_rising = False   # Would check OI trend
-
-        if abs(funding_rate) < 0.0001 and oi_rising:  # |funding| < 0.01%
-            if direction == "LONG" and funding_rate <= 0:
-                return True, 0.02  # +2% score bonus
-            elif direction == "SHORT" and funding_rate >= 0:
-                return True, 0.02
-
+        # TODO: Implement when MARKET_TYPE=FUTURES
+        # Would fetch from: /api/v3/contract/funding_rate (MEXC futures)
+        # For now, return False (edge inactive on SPOT)
         return False, 0.0
+
+        # FUTURE IMPLEMENTATION (when FUTURES enabled):
+        # funding_rate = self.mexc_client.get_funding_rate(symbol)
+        # oi_current = self.mexc_client.get_open_interest(symbol)
+        # oi_8h_ago = self.mexc_client.get_open_interest_historical(symbol, hours_ago=8)
+        # oi_rising = oi_current > oi_8h_ago * 1.05
+        #
+        # if abs(funding_rate) < 0.0001 and oi_rising:
+        #     if direction == "LONG" and funding_rate <= 0:
+        #         return True, 0.02
+        #     elif direction == "SHORT" and funding_rate >= 0:
+        #         return True, 0.02
+        #
+        # return False, 0.0
 
     def detect_rotation_edge(
         self,
         symbol: str,
-        symbol_sector: str
+        symbol_24h_change: float,
+        market_24h_avg_change: float
     ) -> Tuple[bool, float]:
         """
-        ROTATION EDGE
+        ROTATION EDGE (Simplified - Volume-Based)
 
-        Track sector groups (AI, L1, MEME, DEFI, etc.)
-        If sector A pumped yesterday and sector B lags but today RVOL rising → bonus
+        Instead of sector tracking (requires manual classification),
+        use simpler logic:
+        - If symbol lagged yesterday (underperformed market avg)
+        - But today shows rising RVOL (money rotating in)
+        - Give small bonus (mean reversion + rotation)
+
+        Args:
+            symbol_24h_change: Symbol's 24h return
+            market_24h_avg_change: Average 24h return of top 50 symbols
 
         Returns:
             (edge_active, score_bonus)
@@ -98,13 +113,14 @@ class EdgeDetector:
         if not os.getenv('USE_ROTATION_EDGE', 'true').lower() == 'true':
             return False, 0.0
 
-        # TODO: Implement sector tracking
-        # Would need:
-        # - Sector classification (manual or via tags)
-        # - 24h performance per sector
-        # - Rotation detection logic
+        # Check if symbol underperformed yesterday but is now seeing volume
+        underperformance = symbol_24h_change - market_24h_avg_change
 
-        # Placeholder
+        # Lagged by 3%+ yesterday but not crashed (>-20%)
+        if underperformance < -0.03 and symbol_24h_change > -0.20:
+            # Money rotating from winners to laggers
+            return True, 0.02  # +2% score bonus
+
         return False, 0.0
 
     def detect_dominance_edge(
