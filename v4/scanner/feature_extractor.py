@@ -80,9 +80,9 @@ class FeatureExtractor:
 
             # === VOLATILITY FEATURES (15m) ===
             df_15m['high_low_range'] = df_15m['high'] - df_15m['low']
-            df_15m['tr'] = df_15m[['high_low_range',
-                                    (df_15m['high'] - df_15m['close'].shift()).abs(),
-                                    (df_15m['low'] - df_15m['close'].shift()).abs()]].max(axis=1)
+            df_15m['high_close'] = (df_15m['high'] - df_15m['close'].shift()).abs()
+            df_15m['low_close'] = (df_15m['low'] - df_15m['close'].shift()).abs()
+            df_15m['tr'] = df_15m[['high_low_range', 'high_close', 'low_close']].max(axis=1)
 
             df_15m['atr_14'] = df_15m['tr'].rolling(window=14).mean()
 
