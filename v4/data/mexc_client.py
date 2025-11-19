@@ -154,6 +154,38 @@ class MEXCClient:
         self._set_cache(cache_key, tickers)
         return tickers
 
+    def get_tickers_24h(self) -> List[Dict]:
+        """Alias for get_24h_tickers() for V4 compatibility"""
+        return self.get_24h_tickers()
+
+    def get_ticker_24h(self, symbol: str) -> Optional[Dict]:
+        """
+        Get 24h ticker data for single symbol
+
+        Args:
+            symbol: Trading pair (e.g., "BTCUSDT")
+
+        Returns:
+            Dict with ticker data or None if not found
+        """
+        cache_key = f"ticker_24h_{symbol}"
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+
+        data = self._request("/api/v3/ticker/24hr", params={'symbol': symbol})
+
+        if data is None or not isinstance(data, dict):
+            return None
+
+        # Ensure required fields exist
+        required_fields = ['symbol', 'lastPrice', 'volume', 'quoteVolume']
+        if all(field in data for field in required_fields):
+            self._set_cache(cache_key, data)
+            return data
+
+        return None
+
     def get_orderbook(self, symbol: str, depth: int = 10) -> Optional[Dict]:
         """
         Get orderbook for symbol
