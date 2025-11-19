@@ -137,18 +137,19 @@ class PositionManager:
                     symbol=data['symbol'],
                     direction=data['direction'],
                     entry_price=data['entry_price'],
+                    current_price=data['entry_price'],  # Will be updated on first check
                     size_usdt=data['size_usdt'],
                     stop_loss=data['stop_loss'],
-                    regime=data['regime']
+                    entry_time=datetime.fromisoformat(data['entry_time']),
+                    regime=data['regime'],
+                    initial_risk_r=data['initial_risk_r'],
+                    r_dollars=data['r_dollars']
                 )
                 # Restore state
-                pos.entry_time = datetime.fromisoformat(data['entry_time'])
                 pos.tp1_hit = data['tp1_hit']
                 pos.tp2_hit = data['tp2_hit']
                 pos.remaining_pct = data['remaining_pct']
                 pos.trailing_stop = data.get('trailing_stop')
-                pos.initial_risk_r = data['initial_risk_r']
-                pos.r_dollars = data['r_dollars']
                 pos.mfe_r = data['mfe_r']
                 pos.mae_r = data['mae_r']
                 pos.highest_price = data['highest_price']

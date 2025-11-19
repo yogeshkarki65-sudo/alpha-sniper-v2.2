@@ -34,8 +34,8 @@ class LiquiditySnapshot:
 
     def is_liquid_enough(self) -> bool:
         """Check if symbol passes liquidity gates"""
-        max_spread = float(os.getenv('MAX_ALLOWED_SPREAD_PCT', 1.4))
-        min_depth = float(os.getenv('MIN_TOTAL_DEPTH_10', 8000))
+        max_spread = float(os.getenv('MAX_SPREAD_PCT', 0.25))
+        min_depth = float(os.getenv('MIN_ORDERBOOK_DEPTH', 3000))
 
         if self.effective_spread_pct > max_spread:
             return False
