@@ -5,3 +5,4 @@ logs/
 backups/
 __pycache__/
 *.pyc
+positions.json
