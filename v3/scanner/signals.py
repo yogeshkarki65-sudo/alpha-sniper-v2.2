@@ -81,12 +81,26 @@ class SignalGenerator:
         all_signals = []
         scanned = 0
 
+        # Debug counters
+        rejected_no_features = 0
+        rejected_not_tradeable = 0
+        rejected_invalid_score = 0
+
         for symbol_data in universe:
             try:
                 signal = self._scan_symbol(symbol_data, regime)
 
                 if signal is not None:
                     all_signals.append(signal)
+                else:
+                    # Track rejection reason (set in _scan_symbol)
+                    if hasattr(self, '_last_reject_reason'):
+                        if self._last_reject_reason == 'no_features':
+                            rejected_no_features += 1
+                        elif self._last_reject_reason == 'not_tradeable':
+                            rejected_not_tradeable += 1
+                        elif self._last_reject_reason == 'invalid_score':
+                            rejected_invalid_score += 1
 
                 scanned += 1
 
@@ -95,6 +109,9 @@ class SignalGenerator:
                 continue
 
         print(f"\n📈 Scanned {scanned} symbols")
+        print(f"   ❌ No features: {rejected_no_features}")
+        print(f"   ❌ Not tradeable: {rejected_not_tradeable}")
+        print(f"   ❌ Invalid score: {rejected_invalid_score}")
         print(f"✅ Generated {len(all_signals)} raw signals")
 
         # 4. Rank and filter signals
@@ -139,6 +156,7 @@ class SignalGenerator:
         )
 
         if features is None:
+            self._last_reject_reason = 'no_features'
             return None
 
         # 2. Update symbol state
@@ -155,6 +173,7 @@ class SignalGenerator:
         # 3. Check if symbol is tradeable
         state_machine = symbol_state_manager.get_or_create(symbol)
         if not state_machine.is_tradeable():
+            self._last_reject_reason = 'not_tradeable'
             return None
 
         # 4. Calculate score
@@ -166,6 +185,7 @@ class SignalGenerator:
 
         # 5. Check validity
         if not score_result['is_valid']:
+            self._last_reject_reason = 'invalid_score'
             return None
 
         # 6. Build signal
