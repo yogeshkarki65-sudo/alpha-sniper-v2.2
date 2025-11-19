@@ -65,6 +65,9 @@ class PositionManager:
         self.execution_engine = execution_engine
         self.telegram = telegram_notifier
 
+        # Position persistence
+        self.positions_file = 'positions.json'
+
         # Open positions
         self.positions: Dict[str, Position] = {}  # symbol -> Position
 
@@ -84,6 +87,81 @@ class PositionManager:
         self.nft_bars_min = int(os.getenv('NO_FOLLOW_BARS_MIN', 12))
         self.nft_bars_max = int(os.getenv('NO_FOLLOW_BARS_MAX', 16))
         self.nft_min_mfe_r = float(os.getenv('NO_FOLLOW_MIN_MFE_R', 0.5))
+
+        # Load existing positions from file
+        self._load_positions()
+
+    def _save_positions(self):
+        """Save positions to file for persistence across restarts"""
+        try:
+            positions_data = {}
+            for symbol, pos in self.positions.items():
+                positions_data[symbol] = {
+                    'symbol': pos.symbol,
+                    'direction': pos.direction,
+                    'entry_price': pos.entry_price,
+                    'size_usdt': pos.size_usdt,
+                    'stop_loss': pos.stop_loss,
+                    'regime': pos.regime,
+                    'entry_time': pos.entry_time.isoformat(),
+                    'tp1_hit': pos.tp1_hit,
+                    'tp2_hit': pos.tp2_hit,
+                    'remaining_pct': pos.remaining_pct,
+                    'trailing_stop': pos.trailing_stop,
+                    'initial_risk_r': pos.initial_risk_r,
+                    'r_dollars': pos.r_dollars,
+                    'mfe_r': pos.mfe_r,
+                    'mae_r': pos.mae_r,
+                    'highest_price': pos.highest_price,
+                    'lowest_price': pos.lowest_price,
+                    'bars_since_entry': pos.bars_since_entry
+                }
+
+            with open(self.positions_file, 'w') as f:
+                json.dump(positions_data, f, indent=2)
+
+        except Exception as e:
+            print(f"[PositionManager] Error saving positions: {e}")
+
+    def _load_positions(self):
+        """Load positions from file on startup"""
+        try:
+            if not os.path.exists(self.positions_file):
+                return
+
+            with open(self.positions_file, 'r') as f:
+                positions_data = json.load(f)
+
+            for symbol, data in positions_data.items():
+                pos = Position(
+                    symbol=data['symbol'],
+                    direction=data['direction'],
+                    entry_price=data['entry_price'],
+                    size_usdt=data['size_usdt'],
+                    stop_loss=data['stop_loss'],
+                    regime=data['regime']
+                )
+                # Restore state
+                pos.entry_time = datetime.fromisoformat(data['entry_time'])
+                pos.tp1_hit = data['tp1_hit']
+                pos.tp2_hit = data['tp2_hit']
+                pos.remaining_pct = data['remaining_pct']
+                pos.trailing_stop = data.get('trailing_stop')
+                pos.initial_risk_r = data['initial_risk_r']
+                pos.r_dollars = data['r_dollars']
+                pos.mfe_r = data['mfe_r']
+                pos.mae_r = data['mae_r']
+                pos.highest_price = data['highest_price']
+                pos.lowest_price = data['lowest_price']
+                pos.bars_since_entry = data['bars_since_entry']
+
+                self.positions[symbol] = pos
+
+            if self.positions:
+                print(f"[PositionManager] Loaded {len(self.positions)} position(s) from file")
+
+        except Exception as e:
+            print(f"[PositionManager] Error loading positions: {e}")
 
     def open_position(
         self,
@@ -147,6 +225,9 @@ class PositionManager:
         if self.telegram:
             self._send_open_alert(position)
 
+        # Save positions to file
+        self._save_positions()
+
         return position
 
     def update_positions(self, current_equity: float):
@@ -196,6 +277,10 @@ class PositionManager:
         # Remove closed positions
         for symbol in closed_symbols:
             del self.positions[symbol]
+
+        # Save positions after updates
+        if closed_symbols or self.positions:
+            self._save_positions()
 
     def _check_exits(
         self,
