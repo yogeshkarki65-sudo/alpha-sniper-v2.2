@@ -1,6 +1,6 @@
 .env
 pat.txt
-data/
+/data/
 logs/
 backups/
 __pycache__/
