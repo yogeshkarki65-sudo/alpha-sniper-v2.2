@@ -8,6 +8,7 @@ Main scanner that:
 4. Scores signals
 5. Ranks and filters top opportunities
 """
+import os
 from typing import List, Dict, Optional
 from datetime import datetime
 
@@ -193,8 +194,16 @@ class SignalGenerator:
 
 
 # Singleton instance
+# Use lower threshold in SIM mode to capture more setups for testing
+mode = os.getenv('MODE', 'SIM')
+if mode == 'SIM' and os.getenv('SIM_AGGRESSIVE_MODE', 'true').lower() == 'true':
+    min_score = float(os.getenv('MIN_SIGNAL_SCORE_SIM', 45))
+    print(f"[Scanner] SIM mode with aggressive threshold: {min_score}")
+else:
+    min_score = float(os.getenv('MIN_SIGNAL_SCORE', 70))
+
 signal_generator = SignalGenerator(
     top_k_signals=5,
-    min_scanner_score=60.0,
+    min_scanner_score=min_score,
     fetch_orderbook=False  # Set False for speed, True for quality
 )

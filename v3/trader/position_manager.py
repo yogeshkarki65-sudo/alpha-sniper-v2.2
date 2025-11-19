@@ -8,12 +8,15 @@ Manages open positions:
 - No-follow-through rule (exit dead trades early)
 - Time-based exits
 """
+import os
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 
 from v3.risk.risk_engine import risk_engine, Position
 from v3.execution.cost_model import execution_cost_model
 from v3.data.mexc_client import mexc_client
+from v3.monitoring.confidence_tracker import confidence_tracker
+from v3.monitoring.telegram_notifier import telegram_notifier
 
 
 class PositionManager:
@@ -308,6 +311,30 @@ class PositionManager:
             print(f"   P&L: {trade_result['pnl_r']:+.2f}R (${trade_result['pnl_usd']:+.2f})")
             print(f"   Hold: {trade_result['hold_time_hours']:.1f}h")
 
+            # Record trade in confidence tracker (SIM mode only)
+            if os.getenv('MODE', 'SIM') == 'SIM':
+                confidence_tracker.record_trade({
+                    'symbol': symbol,
+                    'entry_price': position.entry_price,
+                    'exit_price': actual_exit_price,
+                    'pnl': trade_result['pnl_usd'],
+                    'pnl_pct': trade_result['pnl_pct'],
+                    'r_multiple': trade_result['pnl_r'],
+                    'hold_time_hours': trade_result['hold_time_hours'],
+                    'exit_reason': reason,
+                    'timestamp': datetime.now().isoformat(),
+                    'current_equity': risk_engine.current_equity
+                })
+
+                # Check if we should alert LIVE readiness
+                if confidence_tracker.should_alert_live_ready():
+                    self._send_live_ready_alert()
+                    confidence_tracker.mark_live_alert_sent()
+
+                # Send confidence update every 10 trades
+                elif confidence_tracker.metrics.total_trades % 10 == 0:
+                    self._send_confidence_update()
+
         # Clean up metadata
         if symbol in self.position_metadata:
             del self.position_metadata[symbol]
@@ -342,6 +369,52 @@ class PositionManager:
             'positions': positions,
             'total_pnl_usd': sum(p['pnl_usd'] for p in positions)
         }
+
+    def _send_live_ready_alert(self):
+        """Send Telegram alert that bot is ready for LIVE trading"""
+        m = confidence_tracker.metrics
+        win_rate = m.winning_trades / m.total_trades * 100 if m.total_trades > 0 else 0
+        avg_r = m.total_r_multiple / m.total_trades if m.total_trades > 0 else 0
+
+        message = f"""
+🎯 **READY FOR LIVE TRADING!**
+
+Your Alpha Sniper V3.2 has proven itself in SIM mode!
+
+**Track Record:**
+• Total Trades: {m.total_trades}
+• Win Rate: {win_rate:.1f}%
+• Avg R-Multiple: {avg_r:.2f}R
+• Max Drawdown: {m.max_drawdown_pct*100:.1f}%
+• Confidence Score: {m.confidence_score:.1f}/100
+
+**Performance:**
+• Total P&L: ${m.total_pnl:.2f}
+• Peak Equity: ${m.peak_equity:.2f}
+• Current Equity: ${m.current_equity:.2f}
+• Max Win Streak: {m.max_win_streak}
+• Max Loss Streak: {m.max_loss_streak}
+
+**Next Steps:**
+1. Review trade history in sim_performance.json
+2. Set MODE=LIVE in .env file
+3. Set LIVE_EQUITY_START to your starting capital
+4. Restart bot for live trading
+
+⚠️ Always start with small position sizes in LIVE!
+"""
+        telegram_notifier.send_message(message)
+        print(f"\n{'='*60}")
+        print("🎯 LIVE READY ALERT SENT!")
+        print(f"{'='*60}\n")
+
+    def _send_confidence_update(self):
+        """Send periodic confidence update via Telegram"""
+        if not os.getenv('SIM_CONFIDENCE_ALERTS', 'true').lower() == 'true':
+            return
+
+        report = confidence_tracker.get_status_report()
+        telegram_notifier.send_message(report)
 
 
 # Singleton instance

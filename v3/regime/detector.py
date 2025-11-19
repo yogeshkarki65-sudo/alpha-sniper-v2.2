@@ -8,6 +8,7 @@ Combines multiple signals to determine market regime:
 
 Uses hysteresis to prevent whipsaw regime changes.
 """
+import os
 import pandas as pd
 import numpy as np
 from typing import Dict, Tuple, Optional
@@ -326,6 +327,13 @@ class RegimeDetector:
 
     def should_trade_longs(self) -> bool:
         """Should we take long positions in this regime?"""
+        # In SIM mode, optionally allow trading in BEAR for testing (RISKY!)
+        if os.getenv('MODE', 'SIM') == 'SIM':
+            if os.getenv('SIM_TRADE_IN_BEAR', 'false').lower() == 'true':
+                print("⚠️  [SIM] Trading in ALL regimes (including BEAR) - testing only!")
+                return True
+
+        # Normal: Only trade in BULL or SIDEWAYS
         return self.current_regime in [Regime.BULL, Regime.SIDEWAYS]
 
 
