@@ -443,18 +443,40 @@ class PositionManager:
     ):
         """Send position closed alert via Telegram"""
         try:
+            # Calculate percentage gain
+            if position.direction == "LONG":
+                pnl_pct = (exit_price / position.entry_price - 1) * 100
+            else:  # SHORT
+                pnl_pct = (1 - exit_price / position.entry_price) * 100
+
+            # Apply fee impact to percentage
+            taker_fee_pct = float(os.getenv('TAKER_FEE_PCT', 0.1)) / 100.0
+            pnl_pct_after_fees = pnl_pct - (taker_fee_pct * 2 * 100)
+
+            # Emoji based on P&L
             emoji = "🟢" if pnl_r > 0 else "🔴"
+            result = "WIN" if pnl_r > 0 else "LOSS"
+
             message = f"""
-{emoji} **POSITION CLOSED**
+{emoji} **POSITION CLOSED - {result}**
 
 **Symbol:** {position.symbol}
 **Direction:** {position.direction}
 **Entry:** ${position.entry_price:.4f}
 **Exit:** ${exit_price:.4f}
-**P&L:** {pnl_r:+.2f}R (${pnl_usd:+.2f})
-**Hold:** {hold_hours:.1f}h
-**Reason:** {reason}
-**MFE:** {position.mfe_r:.2f}R | **MAE:** {position.mae_r:.2f}R
+
+**💰 PROFIT/LOSS:**
+• **R-Multiple:** {pnl_r:+.2f}R
+• **Percentage:** {pnl_pct_after_fees:+.2f}%
+• **USD P&L:** ${pnl_usd:+.2f}
+
+**📊 TRADE STATS:**
+• **Hold Time:** {hold_hours:.1f}h ({hold_hours/24:.1f} days)
+• **MFE:** {position.mfe_r:.2f}R (best)
+• **MAE:** {position.mae_r:.2f}R (worst)
+• **Exit Reason:** {reason}
+
+**⏰ Closed:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
             self.telegram.send_message(message)
         except Exception as e:
