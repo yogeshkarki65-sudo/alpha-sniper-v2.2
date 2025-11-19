@@ -229,7 +229,9 @@ class V4Scanner:
 
         # Check dominance edge (critical for sideways)
         edges = edge_detector.get_edge_signals(
-            symbol, "LONG", regime.value, alt_strength
+            symbol, "LONG", regime.value, alt_strength,
+            symbol_24h_change=features.get('return_24h', 0.0),
+            market_24h_avg_change=0.0  # TODO: calculate from universe
         )
 
         if not edges.dominance_edge_active:
@@ -401,7 +403,9 @@ class V4Scanner:
 
         # Get edge bonuses
         edges = edge_detector.get_edge_signals(
-            symbol, "LONG", regime.value, alt_strength
+            symbol, "LONG", regime.value, alt_strength,
+            symbol_24h_change=features.get('return_24h', 0.0),
+            market_24h_avg_change=0.0  # TODO: calculate from universe
         )
 
         total_bonus = edges.total_score_bonus()
@@ -437,7 +441,9 @@ class V4Scanner:
 
         # Get edge bonuses
         edges = edge_detector.get_edge_signals(
-            symbol, "SHORT", regime.value, alt_strength
+            symbol, "SHORT", regime.value, alt_strength,
+            symbol_24h_change=features.get('return_24h', 0.0),
+            market_24h_avg_change=0.0  # TODO: calculate from universe
         )
 
         total_bonus = edges.funding_score_bonus + edges.rotation_score_bonus

@@ -158,7 +158,8 @@ class EdgeDetector:
         direction: str,
         regime: str,
         alt_strength: float,
-        symbol_sector: str = "UNKNOWN"
+        symbol_24h_change: float = 0.0,
+        market_24h_avg_change: float = 0.0
     ) -> EdgeSignals:
         """
         Get all edge signals for a symbol
@@ -174,7 +175,7 @@ class EdgeDetector:
 
         # 2) Rotation edge
         signals.rotation_edge_active, signals.rotation_score_bonus = self.detect_rotation_edge(
-            symbol, symbol_sector
+            symbol, symbol_24h_change, market_24h_avg_change
         )
 
         # 3) Dominance edge
