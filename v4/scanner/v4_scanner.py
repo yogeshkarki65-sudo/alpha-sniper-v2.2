@@ -48,12 +48,18 @@ class V4Scanner:
             all_signals.extend(signals)
 
         elif regime == Regime.BEAR:
+            mode = os.getenv('MODE', 'SIMULATION')
             market_type = os.getenv('MARKET_TYPE', 'SPOT')
-            if market_type == 'FUTURES':
+
+            # In SIMULATION mode, allow shorts for backtesting/validation
+            # In LIVE mode, only allow shorts if MARKET_TYPE=FUTURES
+            if mode == 'SIMULATION' or market_type == 'FUTURES':
                 signals = self._scan_for_shorts(universe, regime, regime_details)
                 all_signals.extend(signals)
+                if mode == 'SIMULATION' and market_type == 'SPOT':
+                    print("📊 SIMULATION mode: Shorts enabled for backtesting")
             else:
-                print("⚠️  BEAR regime but MARKET_TYPE=SPOT, shorts disabled")
+                print("⚠️  BEAR regime + LIVE mode + SPOT market - shorts disabled")
 
         elif regime == Regime.NEUTRAL:
             print("⚠️  NEUTRAL regime - no new trades")
