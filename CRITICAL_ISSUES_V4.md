@@ -169,27 +169,46 @@ return False, 0.0
 
 ---
 
-### **4. Daily Loss Cap - Not Integrated with Legacy RiskManager**
+### **4. Daily Loss Cap - IMPLEMENTED ✅**
 
 **Current State:**
 - ✅ V4 has `MAX_DAILY_DRAW_PCT` in .env
-- ❌ Not yet enforced in `v4_main.py`
-- ⚠️ Legacy `risk/risk_manager.py` exists but unused
+- ✅ Enforced in `v4_main.py` (lines 61-127)
+- ✅ Legacy `risk/risk_manager.py` unused (V4 self-contained)
 
-**Risk Level:** 🟡 Medium
-- V4 has portfolio heat limit (1.5% max risk)
-- Position-level risk controls working
-- Missing circuit breaker for bad days
+**How It Works:**
+- Tracks daily starting equity (resets at midnight UTC)
+- Calculates daily PnL %: `(current_equity - daily_start_equity) / daily_start_equity`
+- If daily draw ≤ -2.5%, stops opening new positions
+- Still manages existing positions (allows TP/SL exits)
+- Resumes trading automatically next day
 
-**Mitigation:**
-- Portfolio heat limits aggregate risk
-- Manual monitoring during first weeks
-- Small start equity ($100-$200)
+**Implementation:**
+```python
+# v4_main.py lines 61-63
+self.max_daily_draw_pct = float(os.getenv('MAX_DAILY_DRAW_PCT', 0.025))
+self.daily_start_equity = self.current_equity
+self.daily_reset_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
 
-**Future Work:**
-- Add daily loss tracking to `v4_main.py`
-- Check before opening new positions
-- Log to positions.json or separate file
+# v4_main.py lines 117-127 (in main loop)
+daily_pnl = self.current_equity - self.daily_start_equity
+daily_pnl_pct = daily_pnl / self.daily_start_equity
+
+if daily_pnl_pct <= -self.max_daily_draw_pct:
+    print(f"🛑 DAILY LOSS CAP HIT: {daily_pnl_pct*100:.2f}%")
+    print("   No new positions until tomorrow.")
+    # Skip scanning but still manage positions
+    self.position_manager.update_positions(self.current_equity)
+    time.sleep(self.position_check_interval)
+    continue
+```
+
+**Risk Level:** ✅ Resolved
+- Circuit breaker active
+- Prevents revenge trading
+- Protects capital on bad days
+
+**Status:** Production-ready.
 
 ---
 
@@ -395,7 +414,7 @@ ls -la positions.json
 ## 🔮 FUTURE IMPROVEMENTS
 
 **Priority 1 (Safety):**
-- [ ] Implement daily loss cap enforcement
+- [x] Implement daily loss cap enforcement ✅ DONE
 - [ ] Add equity tracking to database
 - [ ] Emergency stop API (Telegram command: `/stop`)
 
