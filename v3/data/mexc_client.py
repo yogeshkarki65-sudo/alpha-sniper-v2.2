@@ -92,16 +92,31 @@ class MexcClient:
 
         Args:
             symbol: Trading pair (e.g., "BTCUSDT")
-            interval: Timeframe (1m, 5m, 15m, 1h, 4h, 1d)
-            limit: Number of candles to fetch
+            interval: Timeframe (Min1, Min5, Min15, Min60, Hour4, Day1)
+            limit: Number of candles to fetch (max 1000)
 
         Returns:
             List of OHLCV dicts with keys: timestamp, open, high, low, close, volume
         """
+        # MEXC SPOT uses different interval format
+        interval_map = {
+            '1m': 'Min1',
+            '5m': 'Min5',
+            '15m': 'Min15',
+            '1h': 'Min60',
+            '4h': 'Hour4',
+            '1d': 'Day1'
+        }
+
+        mexc_interval = interval_map.get(interval, interval)
+
+        # MEXC limit max is 1000, cap at 500 for safety
+        safe_limit = min(limit, 500)
+
         params = {
             'symbol': symbol,
-            'interval': interval,
-            'limit': limit
+            'interval': mexc_interval,
+            'limit': safe_limit
         }
 
         data = self._request("/api/v3/klines", params=params)
