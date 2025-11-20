@@ -98,20 +98,21 @@ class MexcClient:
         Returns:
             List of OHLCV dicts with keys: timestamp, open, high, low, close, volume
         """
-        # MEXC SPOT uses different interval format
+        # MEXC SPOT V3 API uses lowercase intervals: 1m, 5m, 15m, 60m, 4h, 1d
+        # Normalize interval format
         interval_map = {
-            '1m': 'Min1',
-            '5m': 'Min5',
-            '15m': 'Min15',
-            '1h': 'Min60',
-            '4h': 'Hour4',
-            '1d': 'Day1'
+            '1m': '1m',
+            '5m': '5m',
+            '15m': '15m',
+            '1h': '60m',  # MEXC uses 60m instead of 1h
+            '4h': '4h',
+            '1d': '1d'
         }
 
         mexc_interval = interval_map.get(interval, interval)
 
-        # MEXC limit max is 1000, cap at 500 for safety
-        safe_limit = min(limit, 500)
+        # MEXC limit max is 2000, but cap at 1000 for safety
+        safe_limit = min(limit, 1000)
 
         params = {
             'symbol': symbol,
