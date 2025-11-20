@@ -75,7 +75,7 @@ class AlphaSniperV4:
         # Define universe (you can load this from config)
         universe = [
             'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'ADAUSDT',
-            'DOGEUSDT', 'XRPUSDT', 'DOTUSDT', 'AVAXUSDT', 'MATICUSDT'
+            'DOGEUSDT', 'XRPUSDT', 'DOTUSDT', 'AVAXUSDT', 'POLUSDT'  # Changed MATICUSDT to POLUSDT
         ]
 
         print(f"\n🔍 Scanning {len(universe)} symbols in {regime.name} regime...")
