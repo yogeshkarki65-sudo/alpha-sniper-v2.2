@@ -31,14 +31,31 @@ from v3.data.mexc_client import mexc_client
 class AlphaSniperV4:
     """Alpha Sniper V4.1 Trading Bot"""
 
+    # V4.1.1: Safety bounds for scanner interval
+    MIN_SCANNER_INTERVAL = 60   # Minimum 60 seconds (safety guard)
+    MAX_SCANNER_INTERVAL = 3600  # Maximum 1 hour
+    DEFAULT_SCANNER_INTERVAL = 300  # 5 minutes (optimal from 2017-2025 backtest)
+
     def __init__(self):
         self.mode = os.getenv('MODE', 'SIM')
         self.equity = float(os.getenv(f'{self.mode}_EQUITY_START', 500))
-        self.scanner_interval = int(os.getenv('SCANNER_INTERVAL', 300))
+
+        # V4.1.1: Scanner interval with safety bounds
+        raw_interval = int(os.getenv('SCANNER_INTERVAL', str(self.DEFAULT_SCANNER_INTERVAL)))
+        if raw_interval < self.MIN_SCANNER_INTERVAL:
+            print(f"⚠️  SCANNER_INTERVAL={raw_interval}s is below minimum. Using {self.MIN_SCANNER_INTERVAL}s")
+            self.scanner_interval = self.MIN_SCANNER_INTERVAL
+        elif raw_interval > self.MAX_SCANNER_INTERVAL:
+            print(f"⚠️  SCANNER_INTERVAL={raw_interval}s is above maximum. Using {self.MAX_SCANNER_INTERVAL}s")
+            self.scanner_interval = self.MAX_SCANNER_INTERVAL
+        else:
+            self.scanner_interval = raw_interval
+
         self.running = True  # Flag for graceful shutdown
+        self.last_regime = None  # Track regime changes for notifications
 
         print("=" * 80)
-        print("🚀 ALPHA SNIPER V4.1 - Starting...")
+        print("🚀 ALPHA SNIPER V4.1.1 - Starting...")
         print("=" * 80)
         print(f"Mode: {self.mode}")
         print(f"Starting Equity: ${self.equity}")
@@ -75,6 +92,11 @@ class AlphaSniperV4:
         regime = regime_detector.update_regime(btc_data, market_breadth)
 
         print(f"📊 Current Regime: {regime.name}")
+
+        # V4.1.1: Send Telegram notification on regime change
+        if self.last_regime is not None and self.last_regime != regime:
+            telegram.send_regime_change(self.last_regime.name, regime.name)
+        self.last_regime = regime
 
         return regime
 

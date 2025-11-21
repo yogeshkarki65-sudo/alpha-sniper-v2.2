@@ -134,6 +134,25 @@ class TelegramNotifier:
         msg += f"{error_message}"
         self.send(msg)
 
+    def send_regime_change(self, old_regime: str, new_regime: str):
+        """Send regime change notification."""
+        emoji_map = {'BULL': '🟢', 'SIDEWAYS': '🟡', 'BEAR': '🔴', 'NEUTRAL': '⚪'}
+        old_emoji = emoji_map.get(old_regime, '⚪')
+        new_emoji = emoji_map.get(new_regime, '⚪')
+
+        msg = f"🔄 <b>Regime Change</b>\n"
+        msg += f"{old_emoji} {old_regime} → {new_emoji} {new_regime}"
+        self.send(msg)
+
+    def send_daily_summary(self, stats: dict):
+        """Send daily summary notification."""
+        msg = f"📊 <b>Daily Summary</b>\n"
+        msg += f"Trades: {stats.get('trades', 0)}\n"
+        msg += f"Win Rate: {stats.get('win_rate', 0):.1f}%\n"
+        msg += f"P&L: ${stats.get('pnl_usd', 0):+.2f}\n"
+        msg += f"Equity: ${stats.get('equity', 0):.2f}"
+        self.send(msg)
+
 
 # Global instance
 telegram = TelegramNotifier()
