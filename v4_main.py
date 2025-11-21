@@ -70,13 +70,70 @@ class AlphaSniperV4:
 
         return regime
 
+    def get_top_gainers(self, min_volume: float = 100000, limit: int = 50) -> list:
+        """
+        Get top gaining symbols from MEXC.
+
+        Filters:
+        - 24h volume > min_volume (USD)
+        - Positive 24h change
+        - USDT pairs only
+        - Excludes stablecoins and leveraged tokens
+        """
+        print("📈 Fetching top gainers from MEXC...")
+
+        all_tickers = mexc_client.get_all_tickers()
+        if not all_tickers:
+            print("⚠️  Could not fetch tickers, using fallback universe")
+            return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'ADAUSDT']
+
+        # Filter and sort
+        candidates = []
+        exclude_patterns = ['UP', 'DOWN', 'BEAR', 'BULL', '3L', '3S', '2L', '2S',
+                           'USDC', 'TUSD', 'BUSD', 'DAI', 'FDUSD']
+
+        for ticker in all_tickers:
+            symbol = ticker.get('symbol', '')
+
+            # Only USDT pairs
+            if not symbol.endswith('USDT'):
+                continue
+
+            # Skip leveraged tokens and stablecoins
+            if any(pattern in symbol for pattern in exclude_patterns):
+                continue
+
+            try:
+                volume = float(ticker.get('quoteVolume', 0))
+                change_pct = float(ticker.get('priceChangePercent', 0))
+
+                # Must have minimum volume and positive change
+                if volume >= min_volume and change_pct > 0:
+                    candidates.append({
+                        'symbol': symbol,
+                        'volume': volume,
+                        'change_pct': change_pct
+                    })
+            except (ValueError, TypeError):
+                continue
+
+        # Sort by 24h change (descending)
+        candidates.sort(key=lambda x: x['change_pct'], reverse=True)
+
+        # Get top N symbols
+        top_symbols = [c['symbol'] for c in candidates[:limit]]
+
+        print(f"   Found {len(candidates)} candidates, scanning top {len(top_symbols)}")
+        if top_symbols[:5]:
+            print(f"   Top 5: {', '.join(top_symbols[:5])}")
+
+        return top_symbols
+
     def scan_for_signals(self, regime: Regime):
         """Scan universe for trading signals."""
-        # Define universe (you can load this from config)
-        universe = [
-            'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'ADAUSDT',
-            'DOGEUSDT', 'XRPUSDT', 'DOTUSDT', 'AVAXUSDT', 'LINKUSDT'
-        ]
+        # FIXED: Get TOP GAINERS dynamically instead of hardcoded large caps!
+        min_volume = float(os.getenv('MIN_24H_QUOTE_VOLUME', 100000))
+        universe = self.get_top_gainers(min_volume=min_volume, limit=50)
 
         print(f"\n🔍 Scanning {len(universe)} symbols in {regime.name} regime...")
 
