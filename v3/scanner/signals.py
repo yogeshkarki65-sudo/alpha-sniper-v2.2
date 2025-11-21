@@ -21,7 +21,7 @@ class SignalGenerator:
     """
 
     def __init__(self):
-        self.min_score = 70  # Minimum score for standard signals
+        self.min_score = 80  # Minimum score for standard signals (raised from 70 for quality)
         print("[SignalGenerator] Initialized")
 
     def scan_universe(
