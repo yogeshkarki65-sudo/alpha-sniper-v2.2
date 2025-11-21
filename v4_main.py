@@ -7,10 +7,13 @@ Complete trading bot with:
 - Bear-Resilient Long Engine
 - Multi-level exits
 - Live position tracking
+- Telegram notifications
 """
 
 import os
+import sys
 import time
+import signal
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -21,6 +24,7 @@ from v3.regime.detector import regime_detector, Regime
 from v3.scanner.signals import signal_generator
 from v3.risk.risk_engine import risk_engine
 from v3.monitoring.status_reporter import status_reporter
+from v3.monitoring.telegram_notifier import telegram
 from v3.data.mexc_client import mexc_client
 
 
@@ -31,6 +35,7 @@ class AlphaSniperV4:
         self.mode = os.getenv('MODE', 'SIM')
         self.equity = float(os.getenv(f'{self.mode}_EQUITY_START', 500))
         self.scanner_interval = int(os.getenv('SCANNER_INTERVAL', 300))
+        self.running = True  # Flag for graceful shutdown
 
         print("=" * 80)
         print("🚀 ALPHA SNIPER V4.1 - Starting...")
@@ -39,6 +44,9 @@ class AlphaSniperV4:
         print(f"Starting Equity: ${self.equity}")
         print(f"Scanner Interval: {self.scanner_interval}s")
         print("=" * 80)
+
+        # Send startup notification
+        telegram.send_startup(self.mode, self.equity)
 
     def update_regime(self):
         """Update market regime based on BTC and market breadth."""
@@ -226,9 +234,17 @@ class AlphaSniperV4:
             print(f"{'='*80}\n")
 
         except Exception as e:
-            print(f"❌ Scanner cycle error: {e}")
+            error_msg = f"Scanner cycle error: {e}"
+            print(f"❌ {error_msg}")
+            telegram.send_error(error_msg)
             import traceback
             traceback.print_exc()
+
+    def stop(self):
+        """Stop the bot gracefully."""
+        self.running = False
+        print("\n🔴 Stopping bot gracefully...")
+        telegram.send_shutdown("User stopped (Ctrl+C)")
 
     def run(self):
         """Main loop."""
@@ -237,16 +253,61 @@ class AlphaSniperV4:
         # Run first cycle immediately
         self.run_scanner_cycle()
 
-        # Main loop
-        while True:
-            time.sleep(self.scanner_interval)
-            self.run_scanner_cycle()
+        # Main loop with graceful shutdown support
+        while self.running:
+            try:
+                # Sleep in small increments to allow quick shutdown
+                for _ in range(self.scanner_interval):
+                    if not self.running:
+                        break
+                    time.sleep(1)
+
+                if self.running:
+                    self.run_scanner_cycle()
+
+            except Exception as e:
+                error_msg = f"Main loop error: {e}"
+                print(f"❌ {error_msg}")
+                telegram.send_error(error_msg)
+
+
+# Global bot instance for signal handler
+_bot_instance = None
+
+
+def signal_handler(signum, frame):
+    """Handle SIGINT (Ctrl+C) gracefully."""
+    global _bot_instance
+    if _bot_instance:
+        _bot_instance.stop()
+    else:
+        print("\n🔴 Stopping...")
+        telegram.send_shutdown("SIGINT received")
+        sys.exit(0)
 
 
 def main():
-    """Entry point."""
-    bot = AlphaSniperV4()
-    bot.run()
+    """Entry point with graceful shutdown."""
+    global _bot_instance
+
+    # Register signal handler for Ctrl+C
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    try:
+        _bot_instance = AlphaSniperV4()
+        _bot_instance.run()
+    except KeyboardInterrupt:
+        print("\n🔴 Stopping bot gracefully...")
+        telegram.send_shutdown("KeyboardInterrupt")
+    except Exception as e:
+        error_msg = f"Fatal error: {e}"
+        print(f"❌ {error_msg}")
+        telegram.send_error(error_msg)
+        import traceback
+        traceback.print_exc()
+    finally:
+        print("👋 Bot stopped.")
 
 
 if __name__ == "__main__":

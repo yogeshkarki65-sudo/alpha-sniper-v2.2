@@ -8,6 +8,7 @@ V4.1 FIXES:
 - MAX_PORTFOLIO_HEAT enforced in R-terms (default 1.5%)
 - SIM/LIVE and SPOT/FUTURES mode handling
 - Engine-specific risk parameters (standard_long, standard_short, bear_resilient_long)
+- Telegram notifications for trade open/close
 """
 
 import json
@@ -15,6 +16,12 @@ import os
 from typing import Dict, Optional
 from datetime import datetime
 from dataclasses import dataclass, asdict, field
+
+# Import telegram notifier (fails silently if not configured)
+try:
+    from v3.monitoring.telegram_notifier import telegram
+except ImportError:
+    telegram = None
 
 
 @dataclass
@@ -318,6 +325,18 @@ class RiskEngine:
         print(f"   Entry: ${signal['entry_price']:.6f} | Stop: ${signal['stop_loss']:.6f} ({stop_distance_pct:.2f}%)")
         print(f"   Size: ${size_usd:.2f} | Risk (R): ${initial_risk_usd:.2f} | Engine: {engine}")
 
+        # Send Telegram notification
+        if telegram:
+            telegram.send_trade_opened(
+                symbol=symbol,
+                direction=signal['direction'],
+                entry_price=signal['entry_price'],
+                stop_loss=signal['stop_loss'],
+                size_usd=size_usd,
+                risk_usd=initial_risk_usd,
+                engine=engine
+            )
+
         return position
 
     def close_position(self, symbol: str, exit_price: float, reason: str) -> Optional[dict]:
@@ -365,6 +384,21 @@ class RiskEngine:
 
         print(f"🔴 [RiskEngine] Closed {position.direction}: {symbol} @ ${exit_price:.6f}")
         print(f"   P&L: ${pnl_usd:.2f} ({pnl_pct:+.2f}%) | R-Multiple: {r_multiple:+.2f}R | Reason: {reason}")
+
+        # Send Telegram notification
+        if telegram:
+            telegram.send_trade_closed(
+                symbol=symbol,
+                direction=position.direction,
+                entry_price=position.entry_price,
+                exit_price=exit_price,
+                pnl_usd=pnl_usd,
+                pnl_pct=pnl_pct,
+                r_multiple=r_multiple,
+                hold_time_hours=trade_result['hold_time_hours'],
+                reason=reason,
+                engine=position.engine
+            )
 
         return trade_result
 
