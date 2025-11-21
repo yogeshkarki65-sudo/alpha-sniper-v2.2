@@ -73,9 +73,11 @@ class StatusReporter:
             enriched_positions.append({
                 'symbol': symbol,
                 'direction': direction,
+                'engine': pos.get('engine', 'standard_long'),
                 'entry_price': entry_price,
                 'current_price': current_price,
                 'size_usd': size_usd,
+                'initial_risk_usd': pos.get('initial_risk_usd', size_usd * 0.03),
                 'stop_loss': pos.get('stop_loss', 0),
                 'take_profit': pos.get('take_profit', 0),
                 'pnl_usd': pnl_usd,
@@ -119,15 +121,14 @@ class StatusReporter:
         print()
 
         for i, pos in enumerate(positions, 1):
-            print(f"{i}. {pos['symbol']} ({pos['direction']})")
-            print(f"   Entry: ${pos['entry_price']:.6f}")
-            print(f"   Current: ${pos['current_price']:.6f}")
-            print(f"   Size: ${pos['size_usd']:.2f}")
-            print(f"   Stop Loss: ${pos['stop_loss']:.6f}")
-            print(f"   Take Profit: ${pos['take_profit']:.6f}")
+            engine = pos.get('engine', 'standard_long')
+            initial_risk = pos.get('initial_risk_usd', 0)
+            print(f"{i}. {pos['symbol']} ({pos['direction']}) [{engine}]")
+            print(f"   Entry: ${pos['entry_price']:.6f} | Current: ${pos['current_price']:.6f}")
+            print(f"   Size: ${pos['size_usd']:.2f} | Risk (R): ${initial_risk:.2f}")
+            print(f"   Stop: ${pos['stop_loss']:.6f} | TP: ${pos['take_profit']:.6f}")
             print(f"   P&L: ${pos['pnl_usd']:.2f} ({pos['pnl_pct']:+.2f}%)")
             print(f"   MFE: {pos['mfe_pct']:+.2f}% | MAE: {pos['mae_pct']:+.2f}%")
-            print(f"   Opened: {pos['timestamp']}")
             print()
 
         print("="*80 + "\n")

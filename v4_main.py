@@ -159,16 +159,16 @@ class AlphaSniperV4:
         return signals
 
     def execute_signals(self, signals: list):
-        """Execute top signals based on available capital."""
+        """Execute top signals based on available capital and R-based sizing."""
         if not signals:
             return
 
         for signal in signals:
-            # Try to open position
-            position = risk_engine.open_position(signal)
+            # Try to open position with R-based sizing
+            position = risk_engine.open_position(signal, self.equity)
 
             if position:
-                print(f"✅ Opened {signal['direction']} position: {signal['symbol']}")
+                # Position opened - details already printed by risk_engine
                 break  # Only open one position per scan (for safety)
 
     def manage_positions(self):

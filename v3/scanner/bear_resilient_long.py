@@ -81,17 +81,11 @@ class BearResilientLongEngine:
         if not self._check_entry_trigger(symbol, features):
             return None
 
-        # Calculate position parameters
-        position_size_usd = self.calculate_position_size(
-            equity=features.equity,
-            current_price=features.close,
-            stop_loss_price=self.calculate_stop_loss(features)
-        )
-
+        # Calculate stop loss and exit params
         stop_loss_price = self.calculate_stop_loss(features)
         exit_params = self.get_exit_params(features)
 
-        # Build signal
+        # Build signal - size_usd is calculated by risk_engine using R-based sizing
         signal = {
             'symbol': symbol,
             'direction': 'LONG',
@@ -99,14 +93,16 @@ class BearResilientLongEngine:
             'score': 100,  # All filters passed
             'regime': regime.name,
             'entry_price': features.close,
-            'size_usd': position_size_usd,
             'stop_loss': stop_loss_price,
+            'take_profit': exit_params['tp1_price'],  # Primary TP
             'take_profit_1': exit_params['tp1_price'],
             'take_profit_2': exit_params['tp2_price'],
             'trailing_distance': exit_params['trailing_distance'],
+            'atr_15m': getattr(features, 'atr_15m', features.close * 0.02),
             'max_hold_hours': self.max_hold_hours,
             'timestamp': datetime.now(),
             'reason': 'Bear-resilient long: All filters passed + entry trigger confirmed'
+            # NOTE: size_usd calculated by risk_engine using RISK_PER_TRADE_BEAR_LONG
         }
 
         print(f"🐻💎 [{symbol}] BEAR-RESILIENT LONG SIGNAL!")
@@ -114,7 +110,6 @@ class BearResilientLongEngine:
         print(f"   Stop Loss: ${stop_loss_price:.6f} ({((stop_loss_price/features.close - 1)*100):.2f}%)")
         print(f"   TP1 @ 1.5R: ${exit_params['tp1_price']:.6f}")
         print(f"   TP2 @ 2.5R: ${exit_params['tp2_price']:.6f}")
-        print(f"   Size: ${position_size_usd:.2f}")
 
         return signal
 

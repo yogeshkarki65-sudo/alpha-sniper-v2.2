@@ -163,23 +163,23 @@ class SignalGenerator:
         if score < self.min_score:
             return None
 
-        # Calculate position parameters
+        # Calculate position parameters (R-based sizing done by risk_engine)
         stop_loss = features.close * 0.97  # 3% stop loss
-        take_profit = features.close * 1.06  # 6% take profit
-        size_usd = equity * 0.20  # 20% of equity
+        take_profit = features.close * 1.06  # 6% take profit (2:1 R:R)
 
         signal = {
             'symbol': features.symbol,
             'direction': 'LONG',
-            'engine': 'standard',
+            'engine': 'standard_long',
             'score': score,
             'regime': regime.name,
             'entry_price': features.close,
-            'size_usd': size_usd,
             'stop_loss': stop_loss,
             'take_profit': take_profit,
+            'atr_15m': getattr(features, 'atr_15m', features.close * 0.02),
             'timestamp': datetime.now(),
             'reason': f'Momentum + trend signal (score: {score})'
+            # NOTE: size_usd is calculated by risk_engine based on R
         }
 
         return signal
@@ -222,23 +222,23 @@ class SignalGenerator:
         if score < self.min_score:
             return None
 
-        # Calculate position parameters
+        # Calculate position parameters (R-based sizing done by risk_engine)
         stop_loss = features.close * 1.03  # 3% stop loss (above entry for SHORT)
         take_profit = features.close * 0.94  # 6% take profit (below entry for SHORT)
-        size_usd = equity * 0.20  # 20% of equity
 
         signal = {
             'symbol': features.symbol,
             'direction': 'SHORT',
-            'engine': 'standard',
+            'engine': 'standard_short',
             'score': score,
             'regime': regime.name,
             'entry_price': features.close,
-            'size_usd': size_usd,
             'stop_loss': stop_loss,
             'take_profit': take_profit,
+            'atr_15m': getattr(features, 'atr_15m', features.close * 0.02),
             'timestamp': datetime.now(),
             'reason': f'Downtrend signal in BEAR regime (score: {score})'
+            # NOTE: size_usd is calculated by risk_engine based on R
         }
 
         return signal

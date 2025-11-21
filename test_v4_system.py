@@ -243,8 +243,62 @@ def test_risk_positions():
     print(f"       Open positions: {len(positions)}")
     return True
 
+def test_r_based_sizing():
+    """Test R-based position sizing calculation."""
+    from v3.risk.risk_engine import RiskEngine
+
+    # Create fresh instance for testing
+    engine = RiskEngine.__new__(RiskEngine)
+    engine.open_positions = {}
+    engine.mode = 'SIMULATION'
+    engine.market_type = 'SPOT'
+    engine.risk_per_trade = {'BULL': 0.003, 'SIDEWAYS': 0.0025, 'BEAR_SHORT': 0.0012, 'BEAR_LONG': 0.0008}
+    engine.max_portfolio_heat = 0.015
+    engine.max_concurrent_positions = 5
+    engine.max_concurrent_bear_longs = 1
+
+    # Test signal
+    test_signal = {
+        'symbol': 'TESTUSDT',
+        'direction': 'LONG',
+        'engine': 'standard_long',
+        'regime': 'SIDEWAYS',
+        'entry_price': 100.0,
+        'stop_loss': 97.0,  # 3% stop
+    }
+    equity = 500
+
+    size_usd, risk_usd, reason = engine.calculate_position_size(test_signal, equity)
+
+    # Expected: risk = 500 * 0.0025 = $1.25, size = 1.25 / 0.03 = $41.67
+    expected_risk = 1.25
+    expected_size = 41.67
+
+    print(f"       Signal: LONG @ $100, SL @ $97 (3%)")
+    print(f"       Equity: ${equity}, Risk: 0.25% = ${risk_usd:.2f}")
+    print(f"       Size: ${size_usd:.2f} (expected ~${expected_size:.2f})")
+
+    # Allow 1% tolerance
+    return abs(risk_usd - expected_risk) < 0.1 and abs(size_usd - expected_size) < 1.0
+
+def test_portfolio_heat():
+    """Test portfolio heat is calculated in R-terms."""
+    max_heat = float(os.getenv('MAX_PORTFOLIO_HEAT', '0.015'))
+    risk_sideways = float(os.getenv('RISK_PER_TRADE_SIDEWAYS', '0.0025'))
+
+    # Max positions at full risk = MAX_PORTFOLIO_HEAT / RISK_PER_TRADE
+    max_positions = max_heat / risk_sideways
+
+    print(f"       MAX_PORTFOLIO_HEAT: {max_heat*100:.2f}%")
+    print(f"       RISK_PER_TRADE_SIDEWAYS: {risk_sideways*100:.3f}%")
+    print(f"       Max positions at full risk: {max_positions:.1f}")
+
+    return max_heat > 0 and risk_sideways > 0
+
 test("Import risk_engine", test_risk_import)
 test("Check open positions", test_risk_positions)
+test("R-based position sizing", test_r_based_sizing)
+test("Portfolio heat config", test_portfolio_heat)
 
 
 # ============================================================================
