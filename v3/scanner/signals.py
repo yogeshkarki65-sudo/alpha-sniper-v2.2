@@ -118,14 +118,14 @@ class SignalGenerator:
 
         # Standard signal generation based on regime
         if regime == Regime.BEAR and regime_detector.should_trade_shorts():
-            return self._generate_short_signal(features, regime)
+            return self._generate_short_signal(features, regime, equity)
 
         elif regime_detector.should_trade_longs():
-            return self._generate_long_signal(features, regime)
+            return self._generate_long_signal(features, regime, equity)
 
         return None
 
-    def _generate_long_signal(self, features: Features, regime: Regime) -> Optional[Dict]:
+    def _generate_long_signal(self, features: Features, regime: Regime, equity: float) -> Optional[Dict]:
         """
         Generate LONG signal using standard momentum/trend scoring.
 
@@ -184,7 +184,7 @@ class SignalGenerator:
 
         return signal
 
-    def _generate_short_signal(self, features: Features, regime: Regime) -> Optional[Dict]:
+    def _generate_short_signal(self, features: Features, regime: Regime, equity: float) -> Optional[Dict]:
         """
         Generate SHORT signal for BEAR regime.
 
