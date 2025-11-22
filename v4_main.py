@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Alpha Sniper V4.1 - Main Entry Point
+Alpha Sniper V4.2 - Main Entry Point
 
 Complete trading bot with:
 - Regime-aware signal generation
 - Bear-Resilient Long Engine
+- V4.2: New Token Pump Catcher Engine (20-35% allocation)
 - Multi-level exits
 - Live position tracking
 - Telegram notifications
@@ -22,6 +23,7 @@ load_dotenv()
 
 from v3.regime.detector import regime_detector, Regime
 from v3.scanner.signals import signal_generator
+from v3.scanner.pump_new_token import pump_new_token_engine
 from v3.risk.risk_engine import risk_engine
 from v3.monitoring.status_reporter import status_reporter
 from v3.monitoring.telegram_notifier import telegram
@@ -29,7 +31,7 @@ from v3.data.mexc_client import mexc_client
 
 
 class AlphaSniperV4:
-    """Alpha Sniper V4.1 Trading Bot"""
+    """Alpha Sniper V4.2 Trading Bot"""
 
     # V4.1.1: Safety bounds for scanner interval
     MIN_SCANNER_INTERVAL = 60   # Minimum 60 seconds (safety guard)
@@ -55,11 +57,12 @@ class AlphaSniperV4:
         self.last_regime = None  # Track regime changes for notifications
 
         print("=" * 80)
-        print("🚀 ALPHA SNIPER V4.1.1 - Starting...")
+        print("🚀 ALPHA SNIPER V4.2 - Starting...")
         print("=" * 80)
         print(f"Mode: {self.mode}")
         print(f"Starting Equity: ${self.equity}")
         print(f"Scanner Interval: {self.scanner_interval}s")
+        print(f"Pump Engine: {'ENABLED' if pump_new_token_engine.enabled else 'DISABLED'}")
         print("=" * 80)
 
         # Send startup notification
@@ -159,29 +162,106 @@ class AlphaSniperV4:
 
         return top_symbols
 
+    def get_new_token_candidates(self) -> list:
+        """
+        V4.2: Get newly listed tokens (3-48h old) for pump engine.
+
+        Detection logic:
+        - High 24h return (30%+ gain indicates new listing or pump start)
+        - High RVOL (2.0+)
+        - Sufficient volume (>$50k)
+
+        Note: Without direct listing time API, we use proxy signals.
+        """
+        if not pump_new_token_engine.enabled:
+            return []
+
+        print("🆕 Fetching new token candidates for pump engine...")
+
+        all_tickers = mexc_client.get_all_tickers()
+        if not all_tickers:
+            return []
+
+        # V4.2 Pump filter thresholds from .env
+        min_volume = float(os.getenv('PUMP_MIN_VOLUME_USDT', '50000'))
+        min_24h_return = float(os.getenv('PUMP_MIN_24H_RETURN', '0.30'))
+        max_24h_return = float(os.getenv('PUMP_MAX_24H_RETURN', '4.0'))
+
+        candidates = []
+        exclude_patterns = ['UP', 'DOWN', 'BEAR', 'BULL', '3L', '3S', '2L', '2S',
+                           'USDC', 'TUSD', 'BUSD', 'DAI', 'FDUSD']
+
+        for ticker in all_tickers:
+            symbol = ticker.get('symbol', '')
+
+            # Only USDT pairs
+            if not symbol.endswith('USDT'):
+                continue
+
+            # Skip leveraged tokens and stablecoins
+            if any(pattern in symbol for pattern in exclude_patterns):
+                continue
+
+            try:
+                volume = float(ticker.get('quoteVolume', 0))
+                change_pct = float(ticker.get('priceChangePercent', 0)) / 100  # Convert to decimal
+
+                # New token proxy: high return (30-400%), sufficient volume
+                if (min_24h_return <= change_pct <= max_24h_return and
+                    volume >= min_volume):
+                    candidates.append({
+                        'symbol': symbol,
+                        'volume': volume,
+                        'change_pct': change_pct
+                    })
+            except (ValueError, TypeError):
+                continue
+
+        # Sort by 24h change (descending) - highest movers first
+        candidates.sort(key=lambda x: x['change_pct'], reverse=True)
+
+        # Limit to top 20 new token candidates
+        new_tokens = [c['symbol'] for c in candidates[:20]]
+
+        if new_tokens:
+            print(f"   Found {len(candidates)} pump candidates, scanning top {len(new_tokens)}")
+            print(f"   Top 3: {', '.join([f\"{c['symbol']}(+{c['change_pct']*100:.0f}%)\" for c in candidates[:3]])}")
+        else:
+            print("   No new token candidates found")
+
+        return new_tokens
+
     def scan_for_signals(self, regime: Regime):
         """Scan universe for trading signals."""
         # FIXED: Get TOP GAINERS dynamically instead of hardcoded large caps!
         min_volume = float(os.getenv('MIN_24H_QUOTE_VOLUME', 100000))
         universe = self.get_top_gainers(min_volume=min_volume, limit=50)
 
-        print(f"\n🔍 Scanning {len(universe)} symbols in {regime.name} regime...")
+        # V4.2: Get new token candidates for pump engine
+        new_token_candidates = self.get_new_token_candidates()
+
+        print(f"\n🔍 Scanning {len(universe)} symbols + {len(new_token_candidates)} pump candidates in {regime.name} regime...")
 
         # Get BTC return for RS calculation
         btc_ticker = mexc_client.get_ticker_24h('BTCUSDT')
         btc_return_14d = 0  # Simplified, you can calculate actual
 
-        # Scan universe
+        # Scan universe (V4.2: now includes pump engine scanning)
         signals = signal_generator.scan_universe(
             symbols=universe,
             regime=regime,
             equity=self.equity,
-            btc_return_14d=btc_return_14d
+            btc_return_14d=btc_return_14d,
+            new_token_symbols=new_token_candidates  # V4.2
         )
 
         if signals:
-            print(f"✅ Found {len(signals)} signals")
-            for sig in signals[:3]:  # Show top 3
+            # Separate pump signals for display
+            pump_signals = [s for s in signals if s.get('engine') == 'pump_long']
+            standard_signals = [s for s in signals if s.get('engine') != 'pump_long']
+
+            print(f"✅ Found {len(signals)} signals ({len(standard_signals)} standard, {len(pump_signals)} pump)")
+            for sig in signals[:5]:  # Show top 5
                 print(f"   {sig['symbol']}: {sig['direction']} @ ${sig['entry_price']:.6f} (score: {sig['score']}, engine: {sig.get('engine', 'standard')})")
         else:
             print("ℹ️  No signals found")
@@ -270,7 +350,7 @@ class AlphaSniperV4:
 
     def run(self):
         """Main loop."""
-        print("\n✅ Alpha Sniper V4.1 started successfully!\n")
+        print("\n✅ Alpha Sniper V4.2 started successfully!\n")
 
         # Run first cycle immediately
         self.run_scanner_cycle()

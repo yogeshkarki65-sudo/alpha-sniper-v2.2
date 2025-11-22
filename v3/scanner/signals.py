@@ -2,6 +2,11 @@
 """
 Signal Generator - Generate trading signals from features
 
+V4.2 UPDATES:
+- Added pump_new_token engine integration
+- Pump signals scanned in parallel with standard signals
+- Dynamic equity allocation for pump engine (20-35%)
+
 V4.1.1 UPDATES:
 - Tuned parameters from 2017-2025 backtest
 - ATR-based stop losses instead of fixed %
@@ -15,6 +20,7 @@ from datetime import datetime
 
 from v3.scanner.features import Features, extract_features
 from v3.scanner.bear_resilient_long import bear_resilient_long_engine
+from v3.scanner.pump_new_token import pump_new_token_engine, generate_pump_signals
 from v3.regime.detector import Regime, regime_detector
 
 
@@ -52,16 +58,20 @@ class SignalGenerator:
         symbols: List[str],
         regime: Regime,
         equity: float,
-        btc_return_14d: float = 0
+        btc_return_14d: float = 0,
+        new_token_symbols: List[str] = None
     ) -> List[Dict]:
         """
         Scan all symbols and generate signals.
+
+        V4.2: Also scans new_token_symbols for pump signals.
 
         Args:
             symbols: List of trading pairs to scan
             regime: Current market regime
             equity: Current account equity
             btc_return_14d: BTC 14-day return for RS calculation
+            new_token_symbols: List of newly listed tokens (3-48h old) for pump engine
 
         Returns:
             List of signal dicts sorted by score (descending)
@@ -69,6 +79,7 @@ class SignalGenerator:
         signals = []
         failed_count = 0
 
+        # === Standard signal scanning ===
         for symbol in symbols:
             try:
                 signal = self._scan_symbol(
@@ -85,12 +96,87 @@ class SignalGenerator:
                 print(f"[Signals] {symbol}: Error during scan: {e}")
                 failed_count += 1
 
-        print(f"[Signals] Scanned {len(symbols)} symbols: {len(signals)} signals, {failed_count} failed")
+        # === V4.2: Pump engine scanning ===
+        pump_signals = self._scan_pump_tokens(
+            new_token_symbols or [],
+            regime=regime,
+            equity=equity,
+            btc_return_14d=btc_return_14d
+        )
+        signals.extend(pump_signals)
+
+        print(f"[Signals] Scanned {len(symbols)} symbols: {len(signals) - len(pump_signals)} standard, {len(pump_signals)} pump, {failed_count} failed")
 
         # Sort by score descending
         signals.sort(key=lambda s: s.get('score', 0), reverse=True)
 
         return signals
+
+    def _scan_pump_tokens(
+        self,
+        new_token_symbols: List[str],
+        regime: Regime,
+        equity: float,
+        btc_return_14d: float
+    ) -> List[Dict]:
+        """
+        V4.2: Scan newly listed tokens for pump signals.
+
+        Args:
+            new_token_symbols: List of new tokens to scan
+            regime: Current market regime
+            equity: Total account equity
+            btc_return_14d: BTC 14-day return
+
+        Returns:
+            List of pump signals
+        """
+        if not pump_new_token_engine.enabled:
+            return []
+
+        if not new_token_symbols:
+            return []
+
+        # Get current pump position count
+        from v3.risk.risk_engine import risk_engine
+        current_pump_longs = sum(
+            1 for pos in risk_engine.open_positions.values()
+            if getattr(pos, 'engine', None) == 'pump_long'
+        )
+
+        # Extract features for all new tokens
+        features_list = []
+        for symbol in new_token_symbols:
+            try:
+                features = extract_features(
+                    symbol=symbol,
+                    equity=equity,
+                    btc_return_14d=btc_return_14d
+                )
+                if features:
+                    features_list.append(features)
+            except Exception as e:
+                print(f"[Pump] {symbol}: Failed to extract features: {e}")
+
+        if not features_list:
+            return []
+
+        # Generate pump signals
+        now = datetime.now()
+        pump_signals = generate_pump_signals(
+            features_list=features_list,
+            engine=pump_new_token_engine,
+            regime=regime,
+            now=now,
+            total_equity=equity,
+            current_pump_longs=current_pump_longs,
+            pumps_in_last_hour=len(features_list)  # Use candidate count as activity proxy
+        )
+
+        if pump_signals:
+            print(f"[Pump] Found {len(pump_signals)} pump signals from {len(new_token_symbols)} new tokens")
+
+        return pump_signals
 
     def _scan_symbol(
         self,

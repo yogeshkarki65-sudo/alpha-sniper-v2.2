@@ -2,12 +2,19 @@
 """
 Risk Engine - Position management and R-based risk controls
 
+V4.2 UPDATES:
+- Added pump_long engine support for new token pump catcher
+- Dynamic pump allocation (20-35% equity slice)
+- pump_long multi-TP: TP1 @ 1.5R (40%), TP2 @ 3.0R (40%), trailing (20%)
+- pump_long NFT dead rule: exit after 3.5h if flat (-1% to +1%)
+- pump_long max hold: 6 hours
+
 V4.1.1 UPDATES:
 - R-based position sizing using RISK_PER_TRADE_* from .env
 - Portfolio heat = sum of initial R (risk dollars), not exposure
 - MAX_PORTFOLIO_HEAT enforced in R-terms (default 1.5%)
 - SIM/LIVE and SPOT/FUTURES mode handling
-- Engine-specific risk parameters (standard_long, standard_short, bear_resilient_long)
+- Engine-specific risk parameters (standard_long, standard_short, bear_resilient_long, pump_long)
 - Telegram notifications for trade open/close
 - Multi-TP exits for standard_long: TP1 @ 1.5R (40%), TP2 @ 3R (40%), trailing (20%)
 - NFT rule for standard_long: exit dead trades after 3-4 hours
@@ -134,6 +141,10 @@ class Position:
         if self.engine == 'standard_long' and self.direction == 'LONG':
             return self._check_standard_long_exits(current_price, hours_held, r_multiple, r_value)
 
+        # === V4.2: PUMP_LONG EXITS ===
+        if self.engine == 'pump_long':
+            return self._check_pump_long_exits(current_price, hours_held, r_multiple, r_value)
+
         # === BEAR_RESILIENT_LONG EXITS (existing logic) ===
         if self.engine == 'bear_resilient_long':
             return self._check_bear_resilient_exits(current_price, hours_held, r_multiple, r_value)
@@ -241,6 +252,51 @@ class Position:
 
         return (False, "", 0)
 
+    def _check_pump_long_exits(
+        self, current_price: float, hours_held: float, r_multiple: float, r_value: float
+    ) -> Tuple[bool, str, float]:
+        """
+        V4.2: Pump engine exit logic:
+        - TP1 @ 1.5R: Exit 40%, move SL to breakeven
+        - TP2 @ 3.0R: Exit 40% (80% total closed)
+        - Trailing on remaining 20%
+        - NFT Dead: Exit if flat (-1% to +1%) after 3.5h
+        - Max hold: 6h
+        """
+        # TP1 @ 1.5R - Exit 40%, move SL to breakeven
+        if not self.tp1_hit and r_multiple >= 1.5:
+            self.tp1_hit = True
+            self.sl_moved_to_be = True
+            self.stop_loss = self.entry_price
+            self.remaining_size_pct = 60
+            return (True, "Pump TP1 @ 1.5R - closing 40%, SL to breakeven", 40)
+
+        # TP2 @ 3.0R - Exit another 40%
+        if self.tp1_hit and not self.tp2_hit and r_multiple >= 3.0:
+            self.tp2_hit = True
+            self.remaining_size_pct = 20
+            return (True, "Pump TP2 @ 3.0R - closing 40%, trailing 20%", 67)
+
+        # Trailing stop on remaining 20%
+        if self.tp2_hit and self.remaining_size_pct > 0:
+            trailing_stop = self._calculate_trailing_stop()
+            if current_price <= trailing_stop:
+                return (True, f"Pump trailing stop @ ${trailing_stop:.6f}", 100)
+
+        # NFT Dead Pump Rule: Exit if flat after 3.5h
+        # Flat = PnL between -1% and +1%
+        if hours_held >= 3.5:
+            pnl_pct = (current_price / self.entry_price - 1)
+            if -0.01 <= pnl_pct <= 0.01:
+                return (True, f"NFT Dead pump (flat {pnl_pct*100:+.1f}% after {hours_held:.1f}h)", 100)
+
+        # Max hold time for pump_long
+        max_hold_hours = float(os.getenv('PUMP_MAX_HOLD_HOURS', '6'))
+        if hours_held >= max_hold_hours:
+            return (True, f"Pump max hold time ({max_hold_hours}h) reached", 100)
+
+        return (False, "", 0)
+
     def _calculate_trailing_stop(self) -> float:
         """Calculate trailing stop based on highest price and ATR."""
         if self.atr_15m > 0:
@@ -300,12 +356,19 @@ class RiskEngine:
             'SIDEWAYS': float(os.getenv('RISK_PER_TRADE_SIDEWAYS', '0.0025')),
             'BEAR_SHORT': float(os.getenv('RISK_PER_TRADE_BEAR_SHORT', '0.0012')),
             'BEAR_LONG': float(os.getenv('RISK_PER_TRADE_BEAR_LONG', '0.0008')),
+            'PUMP_LONG': float(os.getenv('PUMP_RISK_PER_TRADE', '0.001')),  # V4.2
         }
 
         # Portfolio limits
         self.max_portfolio_heat = float(os.getenv('MAX_PORTFOLIO_HEAT', '0.015'))  # 1.5% default
         self.max_concurrent_positions = int(os.getenv('MAX_CONCURRENT_POSITIONS', '5'))
         self.max_concurrent_bear_longs = int(os.getenv('MAX_CONCURRENT_BEAR_LONGS', '1'))
+        self.max_concurrent_pump_longs = int(os.getenv('PUMP_MAX_CONCURRENT', '2'))  # V4.2
+
+        # V4.2 Pump engine allocation
+        self.pump_alloc_min = float(os.getenv('PUMP_ALLOC_MIN', '0.20'))
+        self.pump_alloc_max = float(os.getenv('PUMP_ALLOC_MAX', '0.35'))
+        self.pump_max_hold_hours = float(os.getenv('PUMP_MAX_HOLD_HOURS', '6'))
 
         self._load_positions()
         self._ensure_log_file()
@@ -332,7 +395,9 @@ class RiskEngine:
 
         Returns fraction of equity to risk (e.g., 0.003 = 0.3%)
         """
-        if engine == 'bear_resilient_long':
+        if engine == 'pump_long':
+            return self.risk_per_trade['PUMP_LONG']
+        elif engine == 'bear_resilient_long':
             return self.risk_per_trade['BEAR_LONG']
         elif engine == 'standard_short':
             return self.risk_per_trade['BEAR_SHORT']
@@ -383,6 +448,11 @@ class RiskEngine:
         max_size_pct = 0.20  # Max 20% of equity per position
         if engine == 'bear_resilient_long':
             max_size_pct = 0.05  # Max 5% for bear micro-longs
+        elif engine == 'pump_long':
+            # V4.2: Pump trades use dynamic allocation slice
+            # Max 20% of pump allocation per position
+            pump_alloc = float(os.getenv('PUMP_ALLOC_MAX', '0.35'))
+            max_size_pct = pump_alloc * 0.20  # ~7% of total equity
 
         max_size_usd = equity * max_size_pct
         if size_usd > max_size_usd:
@@ -422,6 +492,15 @@ class RiskEngine:
             )
             if current_bear_longs >= self.max_concurrent_bear_longs:
                 return (False, f"Max bear-resilient longs ({self.max_concurrent_bear_longs}) reached", 0, 0)
+
+        # V4.2: Pump engine limits
+        if engine == 'pump_long':
+            current_pump_longs = sum(
+                1 for pos in self.open_positions.values()
+                if pos.engine == 'pump_long'
+            )
+            if current_pump_longs >= self.max_concurrent_pump_longs:
+                return (False, f"Max pump longs ({self.max_concurrent_pump_longs}) reached", 0, 0)
 
         # Calculate position size
         size_usd, initial_risk_usd, calc_reason = self.calculate_position_size(signal, equity)

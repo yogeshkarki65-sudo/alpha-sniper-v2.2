@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Alpha Sniper V4.1 - System Health Check
+Alpha Sniper V4.2 - System Health Check
 Tests all components to ensure everything is working
 """
 
@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 print("=" * 70)
-print("  ALPHA SNIPER V4.1 - SYSTEM HEALTH CHECK")
+print("  ALPHA SNIPER V4.2 - SYSTEM HEALTH CHECK")
 print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 print("=" * 70)
 
@@ -228,6 +228,48 @@ test("Bear engine configuration", test_bear_engine_config)
 
 
 # ============================================================================
+# TEST 6b: V4.2 Pump Engine
+# ============================================================================
+print("\n[6b/9] V4.2 PUMP ENGINE")
+print("-" * 50)
+
+def test_pump_engine_import():
+    from v3.scanner.pump_new_token import pump_new_token_engine
+    return pump_new_token_engine is not None
+
+def test_pump_engine_config():
+    from v3.scanner.pump_new_token import pump_new_token_engine
+    engine = pump_new_token_engine
+    print(f"       Enabled: {engine.enabled}")
+    print(f"       Allocation: {engine.alloc_min*100:.0f}%-{engine.alloc_max*100:.0f}%")
+    print(f"       Risk per trade: {engine.risk_per_trade*100:.2f}%")
+    print(f"       Max concurrent: {engine.max_concurrent}")
+    print(f"       Max hold hours: {engine.max_hold_hours}h")
+    print(f"       Token age: {engine.min_age_hours}h - {engine.max_age_hours}h")
+    return engine is not None
+
+def test_pump_engine_filters():
+    """Test pump engine filter thresholds."""
+    from v3.scanner.pump_new_token import pump_new_token_engine
+    engine = pump_new_token_engine
+
+    print(f"       Min volume: ${engine.min_volume_usdt:,.0f}")
+    print(f"       Min RVOL: {engine.min_rvol_15m}")
+    print(f"       Min 1h momentum: {engine.min_1h_momentum*100:.0f}%")
+    print(f"       24h return range: {engine.min_24h_return*100:.0f}%-{engine.max_24h_return*100:.0f}%")
+    print(f"       Max spread: {engine.max_spread_pct}%")
+
+    # Verify reasonable values
+    return (engine.min_rvol_15m >= 1.0 and
+            engine.min_1h_momentum >= 0.10 and
+            engine.max_hold_hours <= 24)
+
+test("Import pump_new_token_engine", test_pump_engine_import)
+test("Pump engine configuration", test_pump_engine_config)
+test("Pump engine filters", test_pump_engine_filters)
+
+
+# ============================================================================
 # TEST 7: Risk Engine
 # ============================================================================
 print("\n[7/8] RISK ENGINE")
@@ -367,7 +409,7 @@ if tests_failed > 0:
     print()
     sys.exit(1)
 else:
-    print("\n  All tests passed! V4.1 is ready to run.")
+    print("\n  All tests passed! V4.2 is ready to run.")
     print("  Start with: python3 v4_main.py")
     print()
     sys.exit(0)
