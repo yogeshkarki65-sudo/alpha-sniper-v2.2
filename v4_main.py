@@ -225,7 +225,8 @@ class AlphaSniperV4:
 
         if new_tokens:
             print(f"   Found {len(candidates)} pump candidates, scanning top {len(new_tokens)}")
-            print(f"   Top 3: {', '.join([f\"{c['symbol']}(+{c['change_pct']*100:.0f}%)\" for c in candidates[:3]])}")
+            top3 = [f"{c['symbol']}(+{c['change_pct']*100:.0f}%)" for c in candidates[:3]]
+            print(f"   Top 3: {', '.join(top3)}")
         else:
             print("   No new token candidates found")
 
