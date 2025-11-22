@@ -56,13 +56,32 @@ class AlphaSniperV4:
         self.running = True  # Flag for graceful shutdown
         self.last_regime = None  # Track regime changes for notifications
 
+        # Load Config C parameters
+        self.risk_profile = os.getenv('RISK_PROFILE', 'MODERATE')
+        self.enable_futures = os.getenv('ENABLE_FUTURES', 'false').lower() == 'true'
+        self.enable_shorts_bear = os.getenv('ENABLE_SHORTS_IN_BEAR', 'false').lower() == 'true'
+        self.enable_shorts_sideways = os.getenv('ENABLE_SHORTS_IN_SIDEWAYS', 'false').lower() == 'true'
+
         print("=" * 80)
-        print("🚀 ALPHA SNIPER V4.2 - Starting...")
+        print("🚀 ALPHA SNIPER V4.2 - CONFIG C (MODERATE + DYNAMIC PUMP)")
         print("=" * 80)
-        print(f"Mode: {self.mode}")
-        print(f"Starting Equity: ${self.equity}")
+        print(f"RISK_PROFILE: {self.risk_profile}")
+        print(f"Mode: {self.mode} | Equity: ${self.equity}")
         print(f"Scanner Interval: {self.scanner_interval}s")
-        print(f"Pump Engine: {'ENABLED' if pump_new_token_engine.enabled else 'DISABLED'}")
+        print("-" * 40)
+        print(f"Futures: {'ENABLED' if self.enable_futures else 'DISABLED'}")
+        shorts_regimes = []
+        if self.enable_shorts_bear:
+            shorts_regimes.append('BEAR')
+        if self.enable_shorts_sideways:
+            shorts_regimes.append('SIDEWAYS')
+        shorts_str = ' + '.join(shorts_regimes) if shorts_regimes else 'DISABLED'
+        print(f"Shorts: {shorts_str}")
+        print("-" * 40)
+        if pump_new_token_engine.enabled:
+            print(f"Pump Engine: ENABLED ({pump_new_token_engine.alloc_min*100:.0f}-{pump_new_token_engine.alloc_max*100:.0f}% allocation, {pump_new_token_engine.risk_per_trade*100:.2f}% R, max {pump_new_token_engine.max_concurrent} positions)")
+        else:
+            print("Pump Engine: DISABLED")
         print("=" * 80)
 
         # Send startup notification

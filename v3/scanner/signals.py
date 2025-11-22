@@ -226,10 +226,14 @@ class SignalGenerator:
             # If no bear-resilient signal, fall through to standard SHORT engine
 
         # Standard signal generation based on regime
-        if regime == Regime.BEAR and regime_detector.should_trade_shorts():
-            return self._generate_short_signal(features, regime, equity)
+        # Config C: Shorts enabled in BEAR + SIDEWAYS when configured
+        if regime_detector.should_trade_shorts():
+            short_signal = self._generate_short_signal(features, regime, equity)
+            if short_signal:
+                return short_signal
 
-        elif regime_detector.should_trade_longs():
+        # Try long signal if allowed
+        if regime_detector.should_trade_longs():
             return self._generate_long_signal(features, regime, equity)
 
         return None
@@ -330,10 +334,12 @@ class SignalGenerator:
 
     def _generate_short_signal(self, features: Features, regime: Regime, equity: float) -> Optional[Dict]:
         """
-        Generate SHORT signal for BEAR regime.
+        Generate SHORT signal for BEAR + SIDEWAYS regimes (Config C).
 
-        V4.1.1 Tuned Parameters:
-        - MIN_RVOL_15M_BEAR_SHORT: 1.25 (was 1.3)
+        V4.2 Config C:
+        - Shorts enabled in BEAR + SIDEWAYS via ENABLE_SHORTS_IN_*
+        - MAX_FUNDING_8H_SHORT: Skip if funding > 0.025%
+        - MIN_RVOL_15M_BEAR_SHORT: 1.25
         - MAX_ALLOWED_SPREAD_PCT: 1.1%
 
         Returns:
@@ -342,6 +348,13 @@ class SignalGenerator:
         # Hard reject if spread too wide (V4.1.1: 1.1% max)
         if features.spread_pct > self.max_spread_pct:
             return None
+
+        # Config C: Funding rate filter for shorts
+        # Skip shorts when funding is too high (indicates crowded short trade)
+        max_funding = float(os.getenv('MAX_FUNDING_8H_SHORT', '0.00025'))
+        funding_rate = getattr(features, 'funding_rate_8h', 0)
+        if funding_rate > max_funding:
+            return None  # Funding too high, skip short
 
         score = 0
 

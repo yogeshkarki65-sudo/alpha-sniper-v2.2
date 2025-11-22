@@ -103,6 +103,11 @@ class RegimeDetector:
         """
         Should we take SHORT positions in this regime?
 
+        Config C: Shorts enabled in BEAR + SIDEWAYS when:
+        - ENABLE_FUTURES=true AND
+        - ENABLE_SHORTS_IN_BEAR=true (for BEAR regime) OR
+        - ENABLE_SHORTS_IN_SIDEWAYS=true (for SIDEWAYS regime)
+
         BUG FIX (BUG C): Respects SIM_IGNORE_REGIME flag.
         """
         # Check if override flag is set
@@ -111,8 +116,22 @@ class RegimeDetector:
         if ignore_regime:
             return True
 
-        # Normal behavior: Only trade shorts in BEAR
-        return self.current_regime == Regime.BEAR
+        # Check if futures are enabled (required for shorts)
+        enable_futures = os.getenv('ENABLE_FUTURES', 'false').lower() == 'true'
+        if not enable_futures:
+            return False
+
+        # Check regime-specific shorts settings
+        enable_shorts_bear = os.getenv('ENABLE_SHORTS_IN_BEAR', 'false').lower() == 'true'
+        enable_shorts_sideways = os.getenv('ENABLE_SHORTS_IN_SIDEWAYS', 'false').lower() == 'true'
+
+        # Config C: Trade shorts in BEAR + SIDEWAYS when enabled
+        if self.current_regime == Regime.BEAR and enable_shorts_bear:
+            return True
+        if self.current_regime == Regime.SIDEWAYS and enable_shorts_sideways:
+            return True
+
+        return False
 
     def _calculate_btc_trend(self, btc_data: dict) -> int:
         """
