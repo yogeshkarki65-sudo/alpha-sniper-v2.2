@@ -2,7 +2,11 @@
 """
 Risk Engine - Position management and R-based risk controls
 
-V4.2 UPDATES:
+V4.2_FULL_DYNAMIC UPDATES:
+- 4-regime system: BULL, SIDEWAYS, MILD_BEAR, DEEP_BEAR
+- Per-regime risk parameters with granular bear sizing
+- MILD_BEAR: 0.18% R (shallow correction, still opportunities)
+- DEEP_BEAR: 0.15% R (capitulation, minimal exposure)
 - Added pump_long engine support for new token pump catcher
 - Dynamic pump allocation (20-35% equity slice)
 - pump_long multi-TP: TP1 @ 1.5R (40%), TP2 @ 3.0R (40%), trailing (20%)
@@ -350,13 +354,21 @@ class RiskEngine:
         self.mode = os.getenv('MODE', 'SIMULATION')
         self.market_type = os.getenv('MARKET_TYPE', 'SPOT')
 
-        # Risk parameters from .env
+        # V4.2_FULL_DYNAMIC: 4-regime risk parameters from .env
         self.risk_per_trade = {
-            'BULL': float(os.getenv('RISK_PER_TRADE_BULL', '0.003')),
+            # Standard long risk per regime
+            'BULL': float(os.getenv('RISK_PER_TRADE_BULL', '0.0025')),
             'SIDEWAYS': float(os.getenv('RISK_PER_TRADE_SIDEWAYS', '0.0025')),
-            'BEAR_SHORT': float(os.getenv('RISK_PER_TRADE_BEAR_SHORT', '0.0012')),
-            'BEAR_LONG': float(os.getenv('RISK_PER_TRADE_BEAR_LONG', '0.0008')),
-            'PUMP_LONG': float(os.getenv('PUMP_RISK_PER_TRADE', '0.001')),  # V4.2
+            'MILD_BEAR': float(os.getenv('RISK_PER_TRADE_MILD_BEAR', '0.0018')),
+            'DEEP_BEAR': float(os.getenv('RISK_PER_TRADE_DEEP_BEAR', '0.0015')),
+            # Short risk (same for MILD_BEAR and DEEP_BEAR, configurable)
+            'MILD_BEAR_SHORT': float(os.getenv('RISK_PER_TRADE_MILD_BEAR_SHORT', '0.0015')),
+            'DEEP_BEAR_SHORT': float(os.getenv('RISK_PER_TRADE_DEEP_BEAR_SHORT', '0.0012')),
+            'SIDEWAYS_SHORT': float(os.getenv('RISK_PER_TRADE_SIDEWAYS_SHORT', '0.0015')),
+            # Bear-resilient micro-long risk
+            'BEAR_LONG': float(os.getenv('RISK_PER_TRADE_BEAR_LONG', '0.0010')),
+            # Pump engine
+            'PUMP_LONG': float(os.getenv('PUMP_RISK_PER_TRADE', '0.0010')),
         }
 
         # Portfolio limits
@@ -393,17 +405,38 @@ class RiskEngine:
         """
         Get risk per trade based on regime and engine.
 
-        Returns fraction of equity to risk (e.g., 0.003 = 0.3%)
+        V4.2_FULL_DYNAMIC: 4-regime system with granular risk sizing.
+
+        Returns fraction of equity to risk (e.g., 0.0025 = 0.25%)
         """
+        # Pump engine has fixed risk regardless of regime
         if engine == 'pump_long':
             return self.risk_per_trade['PUMP_LONG']
-        elif engine == 'bear_resilient_long':
+
+        # Bear-resilient micro-longs (used in MILD_BEAR and DEEP_BEAR)
+        if engine == 'bear_resilient_long':
             return self.risk_per_trade['BEAR_LONG']
-        elif engine == 'standard_short':
-            return self.risk_per_trade['BEAR_SHORT']
-        elif regime == 'BULL':
+
+        # Shorts - regime-specific risk
+        if engine == 'standard_short':
+            if regime == 'DEEP_BEAR':
+                return self.risk_per_trade['DEEP_BEAR_SHORT']
+            elif regime == 'MILD_BEAR':
+                return self.risk_per_trade['MILD_BEAR_SHORT']
+            else:  # SIDEWAYS shorts
+                return self.risk_per_trade['SIDEWAYS_SHORT']
+
+        # Standard longs - 4-regime risk
+        if regime == 'BULL':
             return self.risk_per_trade['BULL']
-        else:  # SIDEWAYS or default
+        elif regime == 'SIDEWAYS':
+            return self.risk_per_trade['SIDEWAYS']
+        elif regime == 'MILD_BEAR':
+            return self.risk_per_trade['MILD_BEAR']
+        elif regime == 'DEEP_BEAR':
+            return self.risk_per_trade['DEEP_BEAR']
+        else:
+            # Default fallback to SIDEWAYS
             return self.risk_per_trade['SIDEWAYS']
 
     def calculate_position_size(

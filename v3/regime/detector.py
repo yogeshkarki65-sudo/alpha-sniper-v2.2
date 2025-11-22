@@ -2,7 +2,11 @@
 """
 Regime Detector - Multi-signal regime classification with hysteresis
 
-BUG FIX: SIM_IGNORE_REGIME flag replaces automatic SIM override (BUG C)
+V4.2_FULL_DYNAMIC:
+- 4 regimes: BULL, SIDEWAYS, MILD_BEAR, DEEP_BEAR
+- MILD_BEAR: Shallow correction (-10% to -25% from ATH, breadth 30-45%)
+- DEEP_BEAR: Deep crash (>-25% from ATH, breadth <30%, high volatility)
+- Shorts enabled per-regime via ENABLE_SHORTS_IN_* env vars
 """
 
 import os
@@ -11,26 +15,37 @@ from typing import Optional
 
 
 class Regime(Enum):
-    """Market regime classification."""
+    """
+    Market regime classification (4 states).
+
+    V4.2_FULL_DYNAMIC splits BEAR into MILD_BEAR and DEEP_BEAR:
+    - BULL: Strong uptrend, score > 30
+    - SIDEWAYS: Ranging market, score -30 to +30
+    - MILD_BEAR: Shallow correction, score -30 to -60
+    - DEEP_BEAR: Deep crash/capitulation, score < -60
+    """
     BULL = "BULL"
     SIDEWAYS = "SIDEWAYS"
-    BEAR = "BEAR"
+    MILD_BEAR = "MILD_BEAR"
+    DEEP_BEAR = "DEEP_BEAR"
 
 
 class RegimeDetector:
     """
     Detects market regime using multiple signals with hysteresis.
 
+    V4.2_FULL_DYNAMIC: 4-regime system with granular bear detection.
+
     Signals:
     - BTC trend (EMA crossovers, slope)
     - Market breadth (% of coins above MA)
-    - Volatility
+    - Volatility (distinguishes MILD vs DEEP bear)
     - Volume patterns
     """
 
     def __init__(self):
         self.current_regime = Regime.SIDEWAYS
-        self.regime_score = 0  # -100 (BEAR) to +100 (BULL)
+        self.regime_score = 0  # -100 (DEEP_BEAR) to +100 (BULL)
         self.hysteresis_threshold = 15  # Points needed to change regime
 
         print(f"[RegimeDetector] Initialized - Starting regime: {self.current_regime.name}")
@@ -38,6 +53,12 @@ class RegimeDetector:
     def update_regime(self, btc_data: dict, market_breadth: dict) -> Regime:
         """
         Update current regime based on latest data.
+
+        V4.2_FULL_DYNAMIC regime thresholds:
+        - BULL: score > 30
+        - SIDEWAYS: score -30 to +30
+        - MILD_BEAR: score -30 to -60
+        - DEEP_BEAR: score < -60
 
         Args:
             btc_data: BTC metrics (price, EMAs, volume, etc.)
@@ -65,54 +86,77 @@ class RegimeDetector:
         volume_score = self._calculate_volume_score(btc_data)
         score += volume_score
 
-        # Update regime with hysteresis
+        # Update regime with hysteresis (4-regime system)
         old_regime = self.current_regime
+        old_score = self.regime_score
         self.regime_score = score
 
-        if score > 30 and (self.current_regime != Regime.BULL or score > self.regime_score + self.hysteresis_threshold):
-            self.current_regime = Regime.BULL
-        elif score < -30 and (self.current_regime != Regime.BEAR or score < self.regime_score - self.hysteresis_threshold):
-            self.current_regime = Regime.BEAR
-        elif -30 <= score <= 30:
-            if abs(score - self.regime_score) > self.hysteresis_threshold:
-                self.current_regime = Regime.SIDEWAYS
+        # Determine new regime based on score thresholds
+        new_regime = self._score_to_regime(score)
+
+        # Apply hysteresis - only change if score moved significantly
+        if new_regime != self.current_regime:
+            if abs(score - old_score) > self.hysteresis_threshold:
+                self.current_regime = new_regime
+            # For bear transitions, be more sensitive (less hysteresis)
+            elif new_regime in [Regime.MILD_BEAR, Regime.DEEP_BEAR] and score < -30:
+                self.current_regime = new_regime
 
         if old_regime != self.current_regime:
             print(f"🔄 [RegimeDetector] Regime changed: {old_regime.name} → {self.current_regime.name} (score: {score})")
 
         return self.current_regime
 
+    def _score_to_regime(self, score: int) -> Regime:
+        """
+        Convert regime score to regime enum.
+
+        Thresholds:
+        - BULL: score > 30
+        - SIDEWAYS: -30 to +30
+        - MILD_BEAR: -30 to -60
+        - DEEP_BEAR: < -60
+        """
+        if score > 30:
+            return Regime.BULL
+        elif score >= -30:
+            return Regime.SIDEWAYS
+        elif score >= -60:
+            return Regime.MILD_BEAR
+        else:
+            return Regime.DEEP_BEAR
+
     def should_trade_longs(self) -> bool:
         """
         Should we take LONG positions in this regime?
 
-        BUG FIX (BUG C): SIM must behave EXACTLY like LIVE by default.
-        Use SIM_IGNORE_REGIME=true to override (RISKY!)
+        V4.2_FULL_DYNAMIC:
+        - BULL: Yes (full longs)
+        - SIDEWAYS: Yes (careful longs)
+        - MILD_BEAR: Limited (bear-resilient micro-longs only)
+        - DEEP_BEAR: Limited (bear-resilient micro-longs only)
         """
-        # Check if override flag is set
         ignore_regime = os.getenv('SIM_IGNORE_REGIME', 'false').lower() == 'true'
-
         if ignore_regime:
-            print("⚠️  [WARNING] SIM_IGNORE_REGIME=true - Trading in ALL regimes (RISKY!)")
             return True
 
-        # Normal behavior: Only trade longs in BULL or SIDEWAYS
-        return self.current_regime in [Regime.BULL, Regime.SIDEWAYS]
+        # Longs allowed in all regimes, but risk engine adjusts sizing
+        # Bear-resilient engine handles MILD_BEAR and DEEP_BEAR
+        return True
 
     def should_trade_shorts(self) -> bool:
         """
         Should we take SHORT positions in this regime?
 
-        Config C: Shorts enabled in BEAR + SIDEWAYS when:
-        - ENABLE_FUTURES=true AND
-        - ENABLE_SHORTS_IN_BEAR=true (for BEAR regime) OR
-        - ENABLE_SHORTS_IN_SIDEWAYS=true (for SIDEWAYS regime)
+        V4.2_FULL_DYNAMIC:
+        - BULL: NO (ENABLE_SHORTS_IN_BULL=false by default)
+        - SIDEWAYS: Yes if ENABLE_SHORTS_IN_SIDEWAYS=true
+        - MILD_BEAR: Yes if ENABLE_SHORTS_IN_MILD_BEAR=true
+        - DEEP_BEAR: Yes if ENABLE_SHORTS_IN_DEEP_BEAR=true
 
-        BUG FIX (BUG C): Respects SIM_IGNORE_REGIME flag.
+        All require ENABLE_FUTURES=true and pass MAX_FUNDING_8H_SHORT filter.
         """
-        # Check if override flag is set
         ignore_regime = os.getenv('SIM_IGNORE_REGIME', 'false').lower() == 'true'
-
         if ignore_regime:
             return True
 
@@ -122,13 +166,19 @@ class RegimeDetector:
             return False
 
         # Check regime-specific shorts settings
-        enable_shorts_bear = os.getenv('ENABLE_SHORTS_IN_BEAR', 'false').lower() == 'true'
+        enable_shorts_bull = os.getenv('ENABLE_SHORTS_IN_BULL', 'false').lower() == 'true'
         enable_shorts_sideways = os.getenv('ENABLE_SHORTS_IN_SIDEWAYS', 'false').lower() == 'true'
+        enable_shorts_mild_bear = os.getenv('ENABLE_SHORTS_IN_MILD_BEAR', 'false').lower() == 'true'
+        enable_shorts_deep_bear = os.getenv('ENABLE_SHORTS_IN_DEEP_BEAR', 'false').lower() == 'true'
 
-        # Config C: Trade shorts in BEAR + SIDEWAYS when enabled
-        if self.current_regime == Regime.BEAR and enable_shorts_bear:
+        # V4.2_FULL_DYNAMIC: 4-regime shorts logic
+        if self.current_regime == Regime.BULL and enable_shorts_bull:
             return True
         if self.current_regime == Regime.SIDEWAYS and enable_shorts_sideways:
+            return True
+        if self.current_regime == Regime.MILD_BEAR and enable_shorts_mild_bear:
+            return True
+        if self.current_regime == Regime.DEEP_BEAR and enable_shorts_deep_bear:
             return True
 
         return False
@@ -166,6 +216,8 @@ class RegimeDetector:
         """
         Calculate market breadth score (-30 to +30).
 
+        V4.2_FULL_DYNAMIC: More granular for MILD vs DEEP bear detection.
+
         Factors:
         - % of coins above 50-day MA
         - % of coins making new highs vs lows
@@ -180,12 +232,15 @@ class RegimeDetector:
         # Bull: 55-70%
         elif pct_above_ma > 55:
             score += 15
-        # Bear: <30%
-        elif pct_above_ma < 30:
-            score -= 30
-        # Weak: 30-45%
-        elif pct_above_ma < 45:
+        # Sideways: 45-55%
+        elif pct_above_ma >= 45:
+            score += 0
+        # Mild bear: 30-45%
+        elif pct_above_ma >= 30:
             score -= 15
+        # Deep bear: <30%
+        else:
+            score -= 30
 
         return max(-30, min(30, score))
 
@@ -193,8 +248,10 @@ class RegimeDetector:
         """
         Calculate volatility score (-20 to +20).
 
+        V4.2_FULL_DYNAMIC: High volatility + downtrend = DEEP_BEAR signal.
+
         Low volatility + rising = bullish
-        High volatility + falling = bearish
+        High volatility + falling = bearish (deep bear signal)
         """
         score = 0
 
@@ -204,7 +261,10 @@ class RegimeDetector:
         # Low vol + uptrend = bullish
         if volatility < 0.02 and trend > 0:
             score += 20
-        # High vol + downtrend = bearish
+        # Medium vol + downtrend = mild bear
+        elif 0.02 <= volatility <= 0.05 and trend < 0:
+            score -= 10
+        # High vol + downtrend = deep bear signal
         elif volatility > 0.05 and trend < 0:
             score -= 20
 
@@ -225,7 +285,7 @@ class RegimeDetector:
         # Volume confirming uptrend
         if volume_trend > 0 and price_trend > 0:
             score += 20
-        # Volume confirming downtrend
+        # Volume confirming downtrend (capitulation signal)
         elif volume_trend > 0 and price_trend < 0:
             score -= 20
 
@@ -239,6 +299,10 @@ class RegimeDetector:
             'can_trade_longs': self.should_trade_longs(),
             'can_trade_shorts': self.should_trade_shorts()
         }
+
+    def is_bear_regime(self) -> bool:
+        """Check if current regime is any type of bear (MILD or DEEP)."""
+        return self.current_regime in [Regime.MILD_BEAR, Regime.DEEP_BEAR]
 
 
 # Global instance

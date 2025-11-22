@@ -2,7 +2,10 @@
 """
 Signal Generator - Generate trading signals from features
 
-V4.2 UPDATES:
+V4.2_FULL_DYNAMIC UPDATES:
+- 4-regime system: BULL, SIDEWAYS, MILD_BEAR, DEEP_BEAR
+- Shorts enabled in SIDEWAYS + MILD_BEAR + DEEP_BEAR (not BULL)
+- Bear-resilient long engine triggers in MILD_BEAR and DEEP_BEAR
 - Added pump_new_token engine integration
 - Pump signals scanned in parallel with standard signals
 - Dynamic equity allocation for pump engine (20-35%)
@@ -188,7 +191,7 @@ class SignalGenerator:
         """
         Scan a single symbol for trading signal.
 
-        NEW FEATURE: Routes to Bear-Resilient Long Engine if in BEAR regime.
+        V4.2_FULL_DYNAMIC: Routes to Bear-Resilient Long Engine in MILD_BEAR/DEEP_BEAR.
 
         Returns:
             Signal dict or None
@@ -203,8 +206,10 @@ class SignalGenerator:
         if features is None:
             return None
 
-        # NEW FEATURE: Check if using bear-resilient long engine
-        if regime == Regime.BEAR and bear_resilient_long_engine.enabled:
+        # V4.2_FULL_DYNAMIC: Check if using bear-resilient long engine
+        # Triggers in MILD_BEAR and DEEP_BEAR regimes
+        is_bear_regime = regime in [Regime.MILD_BEAR, Regime.DEEP_BEAR]
+        if is_bear_regime and bear_resilient_long_engine.enabled:
             # Get current bear-resilient positions count
             from v3.risk.risk_engine import risk_engine
             current_bear_longs = sum(
@@ -226,7 +231,7 @@ class SignalGenerator:
             # If no bear-resilient signal, fall through to standard SHORT engine
 
         # Standard signal generation based on regime
-        # Config C: Shorts enabled in BEAR + SIDEWAYS when configured
+        # V4.2_FULL_DYNAMIC: Shorts enabled in SIDEWAYS + MILD_BEAR + DEEP_BEAR when configured
         if regime_detector.should_trade_shorts():
             short_signal = self._generate_short_signal(features, regime, equity)
             if short_signal:
@@ -412,7 +417,7 @@ class SignalGenerator:
             'take_profit': take_profit,
             'atr_15m': atr_15m,
             'timestamp': datetime.now(),
-            'reason': f'Downtrend signal in BEAR regime (score: {score})'
+            'reason': f'Downtrend signal in {regime.name} regime (score: {score})'
             # NOTE: size_usd is calculated by risk_engine based on R
         }
 

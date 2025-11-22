@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-Alpha Sniper V4.2 - Main Entry Point
+Alpha Sniper V4.2_FULL_DYNAMIC - Main Entry Point
 
 Complete trading bot with:
-- Regime-aware signal generation
-- Bear-Resilient Long Engine
-- V4.2: New Token Pump Catcher Engine (20-35% allocation)
-- Multi-level exits
+- V4.2_FULL_DYNAMIC: 4-regime system (BULL, SIDEWAYS, MILD_BEAR, DEEP_BEAR)
+- Per-regime R-based position sizing
+- Shorts enabled in SIDEWAYS + MILD_BEAR + DEEP_BEAR (not BULL)
+- Bear-Resilient Long Engine (MILD_BEAR + DEEP_BEAR)
+- New Token Pump Catcher Engine (20-35% dynamic allocation)
+- Multi-level exits (TP1 @ 1.5R, TP2 @ 3R, trailing)
 - Live position tracking
 - Telegram notifications
 """
@@ -56,30 +58,42 @@ class AlphaSniperV4:
         self.running = True  # Flag for graceful shutdown
         self.last_regime = None  # Track regime changes for notifications
 
-        # Load Config C parameters
+        # Load V4.2_FULL_DYNAMIC parameters
         self.risk_profile = os.getenv('RISK_PROFILE', 'MODERATE')
         self.enable_futures = os.getenv('ENABLE_FUTURES', 'false').lower() == 'true'
-        self.enable_shorts_bear = os.getenv('ENABLE_SHORTS_IN_BEAR', 'false').lower() == 'true'
+        # V4.2_FULL_DYNAMIC: 4-regime shorts config
+        self.enable_shorts_bull = os.getenv('ENABLE_SHORTS_IN_BULL', 'false').lower() == 'true'
         self.enable_shorts_sideways = os.getenv('ENABLE_SHORTS_IN_SIDEWAYS', 'false').lower() == 'true'
+        self.enable_shorts_mild_bear = os.getenv('ENABLE_SHORTS_IN_MILD_BEAR', 'false').lower() == 'true'
+        self.enable_shorts_deep_bear = os.getenv('ENABLE_SHORTS_IN_DEEP_BEAR', 'false').lower() == 'true'
 
         print("=" * 80)
-        print("🚀 ALPHA SNIPER V4.2 - CONFIG C (MODERATE + DYNAMIC PUMP)")
+        print("🚀 ALPHA SNIPER V4.2_FULL_DYNAMIC - 4-REGIME SYSTEM")
         print("=" * 80)
         print(f"RISK_PROFILE: {self.risk_profile}")
         print(f"Mode: {self.mode} | Equity: ${self.equity}")
         print(f"Scanner Interval: {self.scanner_interval}s")
         print("-" * 40)
         print(f"Futures: {'ENABLED' if self.enable_futures else 'DISABLED'}")
+        # V4.2_FULL_DYNAMIC: Show all 4 regime shorts settings
         shorts_regimes = []
-        if self.enable_shorts_bear:
-            shorts_regimes.append('BEAR')
+        if self.enable_shorts_bull:
+            shorts_regimes.append('BULL')
         if self.enable_shorts_sideways:
             shorts_regimes.append('SIDEWAYS')
+        if self.enable_shorts_mild_bear:
+            shorts_regimes.append('MILD_BEAR')
+        if self.enable_shorts_deep_bear:
+            shorts_regimes.append('DEEP_BEAR')
         shorts_str = ' + '.join(shorts_regimes) if shorts_regimes else 'DISABLED'
         print(f"Shorts: {shorts_str}")
         print("-" * 40)
         if pump_new_token_engine.enabled:
-            print(f"Pump Engine: ENABLED ({pump_new_token_engine.alloc_min*100:.0f}-{pump_new_token_engine.alloc_max*100:.0f}% allocation, {pump_new_token_engine.risk_per_trade*100:.2f}% R, max {pump_new_token_engine.max_concurrent} positions)")
+            alloc_min = pump_new_token_engine.alloc_min * 100
+            alloc_max = pump_new_token_engine.alloc_max * 100
+            risk_pct = pump_new_token_engine.risk_per_trade * 100
+            max_pos = pump_new_token_engine.max_concurrent
+            print(f"Pump Engine: ENABLED ({alloc_min:.0f}-{alloc_max:.0f}% allocation, {risk_pct:.2f}% R, max {max_pos} positions)")
         else:
             print("Pump Engine: DISABLED")
         print("=" * 80)
