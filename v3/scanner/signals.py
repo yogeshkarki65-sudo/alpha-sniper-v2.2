@@ -32,7 +32,7 @@ class SignalGenerator:
     """
 
     def __init__(self):
-        self.min_score = int(os.getenv('MIN_SIGNAL_SCORE', '80'))
+        self.min_score = int(float(os.getenv('MIN_SIGNAL_SCORE', '80')))
 
         # V4.1.1 Tuned Parameters from .env
         self.min_rvol_bull = float(os.getenv('MIN_RVOL_15M_BULL', '1.15'))
