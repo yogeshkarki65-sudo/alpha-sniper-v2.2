@@ -1,3 +1,13 @@
+"""
+Scanner Module - Generates both LONG and SHORT signals
+
+Flow:
+1. Detect current regime via RegimeDetector
+2. Scan for LONG candidates (top gainers with momentum)
+3. Scan for SHORT candidates (top losers with breakdown) if regime allows
+4. Store signals in database with direction and regime
+"""
+
 import requests
 import time
 from config.config import config
@@ -117,21 +127,21 @@ def compute_features(ticker):
         return None
 
 
-def run_scanner():
-    print("🔍 Running scanner...")
-    pairs = get_usdt_pairs()
-    print(f"[scanner] Final universe size: {len(pairs)} symbols")
-
-    if not pairs:
-        print("[scanner] No pairs to scan (check network / API / filters)")
-        return 0
-
+def scan_for_longs(pairs, regime):
+    """
+    Scan for LONG candidates.
+    Uses existing scoring logic - rewards high trend (near daily high) and positive velocity.
+    """
     signals_created = 0
 
     for t in pairs:
         f = compute_features(t)
         if not f:
             continue
+
+        # For longs, we want positive velocity (gainers)
+        if f["velocity"] < 0:
+            continue  # Skip losers for long signals
 
         score = calculate_score(
             f["rvol"],
@@ -149,16 +159,96 @@ def run_scanner():
                 f["trend"],
                 f["orderbook_imbalance"],
                 f["last_price"],
+                direction='LONG',
+                regime=regime
             )
             signals_created += 1
             print(
-                f"[scanner] ✅ Signal: {f['symbol']} "
+                f"[scanner] LONG: {f['symbol']} "
                 f"score={score:.1f} rvol={f['rvol']:.2f} "
-                f"vel={f['velocity']:.2f}% trend={f['trend']:.2f} ob={f['orderbook_imbalance']:.2f}"
+                f"vel={f['velocity']:.2f}% trend={f['trend']:.2f}"
             )
 
-    print(f"[scanner] Created {signals_created} signals this run")
     return signals_created
+
+
+def scan_for_shorts(regime):
+    """
+    Scan for SHORT candidates using the short_scanner module.
+    Only runs if shorts are enabled for the current regime.
+    """
+    from shorts.regime_detector import regime_detector
+    from shorts.short_scanner import scan_for_shorts as short_scan
+
+    if not regime_detector.should_trade_shorts(regime):
+        print(f"[scanner] Shorts disabled in {regime} regime")
+        return 0
+
+    print(f"[scanner] Scanning for SHORT candidates in {regime} regime...")
+
+    candidates = short_scan(regime)
+    signals_created = 0
+
+    for c in candidates:
+        db.create_signal(
+            c["symbol"],
+            c["score"],
+            c["rvol"],
+            c["velocity"],
+            c["trend"],
+            c["orderbook_imbalance"],
+            c["last_price"],
+            direction='SHORT',
+            regime=regime
+        )
+        signals_created += 1
+        print(
+            f"[scanner] SHORT: {c['symbol']} "
+            f"score={c['score']:.1f} vel={c['velocity']:.1f}% "
+            f"rvol={c['rvol']:.2f} trend={c['trend']:.2f}"
+        )
+
+    return signals_created
+
+
+def run_scanner():
+    """
+    Main scanner entry point.
+    1. Detect regime
+    2. Scan for LONG signals
+    3. Scan for SHORT signals (if enabled)
+    """
+    print("Running scanner...")
+
+    # Import and detect regime
+    from shorts.regime_detector import regime_detector
+    regime = regime_detector.detect_regime()
+
+    print(f"[scanner] Current regime: {regime}")
+    print(f"[scanner] Shorts enabled: BULL={config.ENABLE_SHORTS_IN_BULL}, "
+          f"SIDEWAYS={config.ENABLE_SHORTS_IN_SIDEWAYS}, "
+          f"MILD_BEAR={config.ENABLE_SHORTS_IN_MILD_BEAR}, "
+          f"DEEP_BEAR={config.ENABLE_SHORTS_IN_DEEP_BEAR}")
+
+    # Scan for longs
+    pairs = get_usdt_pairs()
+    print(f"[scanner] Final universe size: {len(pairs)} symbols")
+
+    if not pairs:
+        print("[scanner] No pairs to scan (check network / API / filters)")
+        return 0
+
+    long_signals = scan_for_longs(pairs, regime)
+    print(f"[scanner] Created {long_signals} LONG signals")
+
+    # Scan for shorts
+    short_signals = scan_for_shorts(regime)
+    print(f"[scanner] Created {short_signals} SHORT signals")
+
+    total_signals = long_signals + short_signals
+    print(f"[scanner] Total signals created: {total_signals}")
+
+    return total_signals
 
 
 if __name__ == "__main__":
