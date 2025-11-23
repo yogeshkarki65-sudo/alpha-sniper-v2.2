@@ -10,6 +10,7 @@ Flow:
 
 import requests
 import time
+import traceback
 from config.config import config
 from database.models import db
 from scanner.orderbook import get_orderbook_imbalance, get_spread_pct
@@ -84,9 +85,16 @@ def get_usdt_pairs():
 def compute_features(ticker):
     """
     Compute RVOL, velocity, trend, orderbook imbalance for a symbol.
+    Returns None on any error.
     """
+    if not ticker or not isinstance(ticker, dict):
+        return None
+
     try:
-        symbol = ticker["symbol"]
+        symbol = ticker.get("symbol")
+        if not symbol:
+            return None
+
         volume = float(ticker.get("volume", 0) or 0)
         quote_volume = float(ticker.get("quoteVolume", 0) or 0)
         price_change_pct = float(ticker.get("priceChangePercent", 0) or 0)
@@ -109,9 +117,12 @@ def compute_features(ticker):
             trend = 0.5
 
         # Orderbook imbalance
-        if config.CHECK_ORDER_BOOK_IMBALANCE:
-            ob_imb = get_orderbook_imbalance(symbol)
-        else:
+        try:
+            if config.CHECK_ORDER_BOOK_IMBALANCE:
+                ob_imb = get_orderbook_imbalance(symbol)
+            else:
+                ob_imb = 0.0
+        except Exception:
             ob_imb = 0.0
 
         return {
@@ -123,7 +134,7 @@ def compute_features(ticker):
             "last_price": last_price,
         }
     except Exception as e:
-        print(f"[scanner] Error computing features for {ticker.get('symbol')}: {e}")
+        print(f"[scanner] Error computing features for {ticker.get('symbol', 'unknown')}: {e}")
         return None
 
 
@@ -135,39 +146,48 @@ def scan_for_longs(pairs, regime):
     signals_created = 0
 
     for t in pairs:
-        f = compute_features(t)
-        if not f:
+        try:
+            f = compute_features(t)
+            if not f or not isinstance(f, dict):
+                continue
+
+            # Safely get velocity with default
+            velocity = f.get("velocity", 0)
+            if velocity is None:
+                velocity = 0
+
+            # For longs, we want positive velocity (gainers)
+            if velocity < 0:
+                continue  # Skip losers for long signals
+
+            score = calculate_score(
+                f.get("rvol", 0),
+                f.get("velocity", 0),
+                f.get("trend", 0.5),
+                f.get("orderbook_imbalance", 0),
+            )
+
+            if score >= config.MIN_SIGNAL_SCORE:
+                db.create_signal(
+                    f["symbol"],
+                    score,
+                    f.get("rvol", 0),
+                    f.get("velocity", 0),
+                    f.get("trend", 0.5),
+                    f.get("orderbook_imbalance", 0),
+                    f.get("last_price", 0),
+                    direction='LONG',
+                    regime=regime
+                )
+                signals_created += 1
+                print(
+                    f"[scanner] LONG: {f['symbol']} "
+                    f"score={score:.1f} rvol={f.get('rvol', 0):.2f} "
+                    f"vel={f.get('velocity', 0):.2f}% trend={f.get('trend', 0):.2f}"
+                )
+        except Exception as e:
+            print(f"[scanner] Error processing long candidate: {e}")
             continue
-
-        # For longs, we want positive velocity (gainers)
-        if f["velocity"] < 0:
-            continue  # Skip losers for long signals
-
-        score = calculate_score(
-            f["rvol"],
-            f["velocity"],
-            f["trend"],
-            f["orderbook_imbalance"],
-        )
-
-        if score >= config.MIN_SIGNAL_SCORE:
-            db.create_signal(
-                f["symbol"],
-                score,
-                f["rvol"],
-                f["velocity"],
-                f["trend"],
-                f["orderbook_imbalance"],
-                f["last_price"],
-                direction='LONG',
-                regime=regime
-            )
-            signals_created += 1
-            print(
-                f"[scanner] LONG: {f['symbol']} "
-                f"score={score:.1f} rvol={f['rvol']:.2f} "
-                f"vel={f['velocity']:.2f}% trend={f['trend']:.2f}"
-            )
 
     return signals_created
 
@@ -177,38 +197,55 @@ def scan_for_shorts(regime):
     Scan for SHORT candidates using the short_scanner module.
     Only runs if shorts are enabled for the current regime.
     """
-    from shorts.regime_detector import regime_detector
-    from shorts.short_scanner import scan_for_shorts as short_scan
+    try:
+        from shorts.regime_detector import regime_detector
+        from shorts.short_scanner import scan_for_shorts as short_scan
 
-    if not regime_detector.should_trade_shorts(regime):
-        print(f"[scanner] Shorts disabled in {regime} regime")
+        if not regime_detector.should_trade_shorts(regime):
+            print(f"[scanner] Shorts disabled in {regime} regime")
+            return 0
+
+        print(f"[scanner] Scanning for SHORT candidates in {regime} regime...")
+
+        candidates = short_scan(regime)
+        if not candidates:
+            print("[scanner] No short candidates found")
+            return 0
+
+        signals_created = 0
+
+        for c in candidates:
+            try:
+                if not isinstance(c, dict):
+                    continue
+
+                db.create_signal(
+                    c.get("symbol", "UNKNOWN"),
+                    c.get("score", 0),
+                    c.get("rvol", 0),
+                    c.get("velocity", 0),
+                    c.get("trend", 0.5),
+                    c.get("orderbook_imbalance", 0),
+                    c.get("last_price", 0),
+                    direction='SHORT',
+                    regime=regime
+                )
+                signals_created += 1
+                print(
+                    f"[scanner] SHORT: {c.get('symbol', 'UNKNOWN')} "
+                    f"score={c.get('score', 0):.1f} vel={c.get('velocity', 0):.1f}% "
+                    f"rvol={c.get('rvol', 0):.2f} trend={c.get('trend', 0):.2f}"
+                )
+            except Exception as e:
+                print(f"[scanner] Error creating short signal: {e}")
+                continue
+
+        return signals_created
+
+    except Exception as e:
+        print(f"[scanner] Error in short scanning: {e}")
+        traceback.print_exc()
         return 0
-
-    print(f"[scanner] Scanning for SHORT candidates in {regime} regime...")
-
-    candidates = short_scan(regime)
-    signals_created = 0
-
-    for c in candidates:
-        db.create_signal(
-            c["symbol"],
-            c["score"],
-            c["rvol"],
-            c["velocity"],
-            c["trend"],
-            c["orderbook_imbalance"],
-            c["last_price"],
-            direction='SHORT',
-            regime=regime
-        )
-        signals_created += 1
-        print(
-            f"[scanner] SHORT: {c['symbol']} "
-            f"score={c['score']:.1f} vel={c['velocity']:.1f}% "
-            f"rvol={c['rvol']:.2f} trend={c['trend']:.2f}"
-        )
-
-    return signals_created
 
 
 def run_scanner():
@@ -220,15 +257,23 @@ def run_scanner():
     """
     print("Running scanner...")
 
-    # Import and detect regime
-    from shorts.regime_detector import regime_detector
-    regime = regime_detector.detect_regime()
+    try:
+        # Import and detect regime
+        from shorts.regime_detector import regime_detector
+        regime = regime_detector.detect_regime()
+    except Exception as e:
+        print(f"[scanner] Error detecting regime: {e}, defaulting to SIDEWAYS")
+        regime = "SIDEWAYS"
 
     print(f"[scanner] Current regime: {regime}")
-    print(f"[scanner] Shorts enabled: BULL={config.ENABLE_SHORTS_IN_BULL}, "
-          f"SIDEWAYS={config.ENABLE_SHORTS_IN_SIDEWAYS}, "
-          f"MILD_BEAR={config.ENABLE_SHORTS_IN_MILD_BEAR}, "
-          f"DEEP_BEAR={config.ENABLE_SHORTS_IN_DEEP_BEAR}")
+
+    try:
+        print(f"[scanner] Shorts enabled: BULL={config.ENABLE_SHORTS_IN_BULL}, "
+              f"SIDEWAYS={config.ENABLE_SHORTS_IN_SIDEWAYS}, "
+              f"MILD_BEAR={config.ENABLE_SHORTS_IN_MILD_BEAR}, "
+              f"DEEP_BEAR={config.ENABLE_SHORTS_IN_DEEP_BEAR}")
+    except AttributeError as e:
+        print(f"[scanner] Warning: Some config attributes missing: {e}")
 
     # Scan for longs
     pairs = get_usdt_pairs()
@@ -238,12 +283,22 @@ def run_scanner():
         print("[scanner] No pairs to scan (check network / API / filters)")
         return 0
 
-    long_signals = scan_for_longs(pairs, regime)
-    print(f"[scanner] Created {long_signals} LONG signals")
+    long_signals = 0
+    try:
+        long_signals = scan_for_longs(pairs, regime)
+        print(f"[scanner] Created {long_signals} LONG signals")
+    except Exception as e:
+        print(f"[scanner] Error in long scanning: {e}")
+        traceback.print_exc()
 
     # Scan for shorts
-    short_signals = scan_for_shorts(regime)
-    print(f"[scanner] Created {short_signals} SHORT signals")
+    short_signals = 0
+    try:
+        short_signals = scan_for_shorts(regime)
+        print(f"[scanner] Created {short_signals} SHORT signals")
+    except Exception as e:
+        print(f"[scanner] Error in short scanning: {e}")
+        traceback.print_exc()
 
     total_signals = long_signals + short_signals
     print(f"[scanner] Total signals created: {total_signals}")
